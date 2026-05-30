@@ -4,21 +4,22 @@ server:
 spring:
   application:
     name: api
-
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/netflix_db}
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
     password: ${SPRING_DATASOURCE_PASSWORD:password}
     driver-class-name: org.postgresql.Driver
-
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
-      ddl-auto: update # Automatically updates the database schema based on entities
-    show-sql: true # Logs SQL queries to the console for easier debugging
-
+      ddl-auto: create-drop
+    show-sql: true
+    defer-datasource-initialization: true
   data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
       port: ${SPRING_DATA_REDIS_PORT:6379}
       password: ${SPRING_DATA_REDIS_PASSWORD:redis_password}
+  sql:
+    init:
+      mode: always
