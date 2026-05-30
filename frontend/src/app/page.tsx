@@ -3,7 +3,9 @@ import { Play, Info } from "lucide-react";
 import { Movie } from "@/types";
 
 async function fetchFromBackend<T>(endpoint: string): Promise<T> {
-  const res = await fetch(`http://localhost:8080/api/v1${endpoint}`, {
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
+  
+  const res = await fetch(`${baseUrl}${endpoint}`, {
     cache: "no-store", 
   });
 
