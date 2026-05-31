@@ -10,6 +10,7 @@ add_compile_options(-Wall -Wextra -Wpedantic -Werror -O3)
 add_executable(streaming_engine
     src/main.cpp
     src/httpServer.cpp
+    src/utils.cpp
 )
 
 target_include_directories(streaming_engine PRIVATE src)

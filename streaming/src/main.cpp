@@ -1,3 +1,4 @@
+#include "httpServer.hpp"
 #include <cstring>
 #include <fcntl.h>
 #include <iostream>
@@ -6,7 +7,6 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <vector>
-#include "httpServer.hpp"
 const int PORT = 8081;
 const int MAX_EVENTS = 64;
 
@@ -83,31 +83,34 @@ int main() {
 
   std::vector<epoll_event> events(MAX_EVENTS);
 
-while (true) {
-        int num_events = epoll_wait(epoll_fd, events.data(), MAX_EVENTS, -1);
-        if (num_events == -1) {
-            if (errno == EINTR) continue;
-            perror("Erreur epoll_wait");
-            break;
-        }
-
-        for (int i = 0; i < num_events; ++i) {
-            if ((events[i].events & EPOLLERR) || (events[i].events & EPOLLHUP) || (!(events[i].events & EPOLLIN))) {
-                std::cerr << "[System] Erreur ou fermeture sur le socket FD: " << events[i].data.fd << std::endl;
-                close(events[i].data.fd);
-                continue;
-            }
-            
-            if (events[i].data.fd == server_fd) {
-                handle_new_connection(server_fd, epoll_fd);
-            } else {
-                handle_client_request(events[i].data.fd, epoll_fd);
-            }
-        }
+  while (true) {
+    int num_events = epoll_wait(epoll_fd, events.data(), MAX_EVENTS, -1);
+    if (num_events == -1) {
+      if (errno == EINTR)
+        continue;
+      perror("Erreur epoll_wait");
+      break;
     }
 
-    close(server_fd);
-    close(epoll_fd);
-    return 0;
+    for (int i = 0; i < num_events; ++i) {
+      if ((events[i].events & EPOLLERR) || (events[i].events & EPOLLHUP) ||
+          (!(events[i].events & EPOLLIN))) {
+        std::cerr << "[System] Erreur ou fermeture sur le socket FD: "
+                  << events[i].data.fd << std::endl;
+        close(events[i].data.fd);
+        continue;
+      }
+
+      if (events[i].data.fd == server_fd) {
+        handle_new_connection(server_fd, epoll_fd);
+      } else {
+        handle_client_request(events[i].data.fd, epoll_fd);
+      }
+    }
+  }
+
+  close(server_fd);
+  close(epoll_fd);
+  return 0;
   return 0;
 }
