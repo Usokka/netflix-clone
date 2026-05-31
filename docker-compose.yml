@@ -57,7 +57,7 @@ services:
       - app-network
       - db-network
 
-    # 4. Next Js Frontend
+  # 4. Next Js Frontend (ALIGNÉ PARFAITEMENT)
   frontend-app:
     container_name: netflix-frontend
     build:
@@ -69,10 +69,27 @@ services:
       - NEXT_PUBLIC_API_URL=http://backend-api:8080/api/v1 
       - NODE_ENV=production
     depends_on:
-      - backend-api 
+      - backend-api
+      - streaming-service
+    links:
+      - streaming-service
     networks:
       - app-network
 
+  # 5. C++ Streaming service
+  streaming-service:
+    container_name: netflix-streaming
+    build:
+      context: ./streaming
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./streaming/videos:/app/videos
+    networks:
+      app-network:
+        aliases:
+          - streaming-service 
 networks:
   app-network:
     driver: bridge

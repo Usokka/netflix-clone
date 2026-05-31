@@ -1,0 +1,17 @@
+FROM alpine:3.19 AS builder
+RUN apk add --no-cache g++ cmake make
+WORKDIR /app
+COPY CMakeLists.txt ./
+COPY src/ ./src/
+RUN mkdir build && cd build && \
+    cmake -DCMAKE_BUILD_TYPE=Release .. && \
+    make
+
+FROM alpine:3.19 AS runner
+
+RUN apk add --no-cache libstdc++ libgcc
+
+WORKDIR /app
+COPY --from=builder /app/build/streaming_engine ./streaming_engine
+EXPOSE 8081
+CMD ["./streaming_engine"]

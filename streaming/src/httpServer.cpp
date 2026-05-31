@@ -77,7 +77,6 @@ void handle_client_request(int client_fd, [[maybe_unused]] int epoll_fd) {
         return;
     }
     
-// 3. Sécurisation et routage du fichier
     if (!is_path_safe(url)) {
         std::cerr << "[Security Warning] Tentative de Directory Traversal bloquée : " << url << std::endl;
         std::string response = "HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n";
@@ -86,16 +85,11 @@ void handle_client_request(int client_fd, [[maybe_unused]] int epoll_fd) {
         return;
     }
 
-    // Extraction du chemin relatif après /video
     std::string relative_path = url;
     if (url.rfind("/video", 0) == 0) {
-        relative_path = url.substr(6); // Retire "/video"
+        relative_path = url.substr(6); 
     }
 
-    // ON FORCE LE CHEMIN VERS TON DOSSIER DOSSIER ./videos EN REMONTANT DEPUIS BUILD SI NÉCESSAIRE
-    // Pour être tranquille, on va chercher dans "./videos" relativement à la racine du projet
-    // Si tu lances depuis build/, on peut mettre "../videos" ou s'assurer d'exécuter à la racine du repo.
-    // Le plus simple et le plus propre : on cherche dans "./videos" et on lance le binaire depuis la racine du module streaming !
     std::string file_path = "./videos" + relative_path;
 
     
