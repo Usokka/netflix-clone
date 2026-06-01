@@ -1,5 +1,5 @@
 FROM alpine:3.19 AS builder
-RUN apk add --no-cache g++ cmake make
+RUN apk add --no-cache g++ cmake make openssl-dev git
 WORKDIR /app
 COPY CMakeLists.txt ./
 COPY src/ ./src/
@@ -8,9 +8,7 @@ RUN mkdir build && cd build && \
     make
 
 FROM alpine:3.19 AS runner
-
-RUN apk add --no-cache libstdc++ libgcc
-
+RUN apk add --no-cache libstdc++ libgcc openssl
 WORKDIR /app
 COPY --from=builder /app/build/streaming_engine ./streaming_engine
 EXPOSE 8081

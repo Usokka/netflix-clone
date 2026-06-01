@@ -78,18 +78,44 @@ void handle_client_request(int client_fd, [[maybe_unused]] int epoll_fd) {
     }
     
     if (!is_path_safe(url)) {
-        std::cerr << "[Security Warning] Tentative de Directory Traversal bloquée : " << url << std::endl;
         std::string response = "HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n";
         write(client_fd, response.data(), response.size());
         close(client_fd);
         return;
     }
 
-    std::string relative_path = url;
-    if (url.rfind("/video", 0) == 0) {
-        relative_path = url.substr(6); 
+    std::string ticket = extract_ticket(url);
+    
+    std::string requested_movie_id = "sintel"; 
+    size_t video_pos = url.find("/video/");
+    if (video_pos != std::string::npos) {
+        std::string sub = url.substr(video_pos + 7);
+        size_t slash_pos = sub.find('/');
+        if (slash_pos != std::string::npos) {
+            requested_movie_id = sub.substr(0, slash_pos);
+        }
     }
 
+    std::string client_ip = "127.0.0.1"; 
+
+    if (!verify_streaming_ticket(ticket, client_ip, requested_movie_id)) {
+        std::cout << "[ACCESS DENIED] Requête rejetée pour le film : " << requested_movie_id << " (Ticket absent ou corrompu)" << std::endl;
+        std::string response = "HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n";
+        write(client_fd, response.data(), response.size());
+        close(client_fd);
+        return;
+    }
+
+    std::string clean_url = url;
+    size_t q_pos = url.find('?');
+    if (q_pos != std::string::npos) {
+        clean_url = url.substr(0, q_pos); 
+    }
+
+    std::string relative_path = clean_url;
+    if (clean_url.rfind("/video", 0) == 0) {
+        relative_path = clean_url.substr(6); 
+    }
     std::string file_path = "./videos" + relative_path;
 
     
@@ -134,3 +160,4 @@ void handle_client_request(int client_fd, [[maybe_unused]] int epoll_fd) {
     close(file_fd);
     close(client_fd);
 }
+
