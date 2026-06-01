@@ -56,6 +56,8 @@ services:
     networks:
       - app-network
       - db-network
+    volumes:
+      - ./infra/secrets:/app/secrets:ro 
 
   # 4. Next Js Frontend (ALIGNÉ PARFAITEMENT)
   frontend-app:
