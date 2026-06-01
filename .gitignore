@@ -16,3 +16,7 @@ streaming/build/
 infra/terraform/.terraform/
 infra/terraform/*.tfstate
 infra/terraform/*.tfstate.backup
+
+**/playlist.m3u8
+**/*.m3u8
+**/*.ts

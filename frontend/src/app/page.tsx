@@ -1,20 +1,8 @@
 import MovieRow from "@/components/MovieRow";
 import { Play, Info } from "lucide-react";
 import { Movie } from "@/types";
-
-async function fetchFromBackend<T>(endpoint: string): Promise<T> {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
-  
-  const res = await fetch(`${baseUrl}${endpoint}`, {
-    cache: "no-store", 
-  });
-
-  if (!res.ok) {
-    throw new Error(`Failed to fetch from endpoint: ${endpoint}`);
-  }
-
-  return res.json();
-}
+import { fetchFromBackend } from "@/lib/api";
+import Link from "next/link";
 
 export default async function Home() {
   const [allMovies, actionMovies, sciFiMovies] = await Promise.all([
@@ -52,9 +40,11 @@ export default async function Home() {
             Découvre ce chef-d'œuvre exclusif disponible dès maintenant sur ta plateforme de streaming.
           </p>
           <div className="flex items-center gap-3 pt-2">
-            <button className="flex items-center gap-2 bg-white text-black px-4 md:px-7 py-1.5 md:py-2.5 rounded font-bold hover:bg-neutral-200 transition text-sm md:text-base shadow">
-              <Play className="w-4 h-4 md:w-5 md:h-5 fill-current" /> Lecture
-            </button>
+            <Link href={heroMovie ? `/watch/${heroMovie.id}` : "#"}>
+              <button className="flex items-center gap-2 bg-white text-black px-4 md:px-7 py-1.5 md:py-2.5 rounded font-bold hover:bg-neutral-200 transition text-sm md:text-base shadow">
+                <Play className="w-4 h-4 md:w-5 md:h-5 fill-current" /> Lecture
+              </button>
+            </Link>
             <button className="flex items-center gap-2 bg-zinc-500/60 text-white px-4 md:px-7 py-1.5 md:py-2.5 rounded font-bold hover:bg-zinc-500/40 transition text-sm md:text-base backdrop-blur-sm">
               <Info className="w-4 h-4 md:w-5 md:h-5" /> Plus d'infos
             </button>
