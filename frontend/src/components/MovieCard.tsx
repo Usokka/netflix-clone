@@ -1,5 +1,3 @@
-// src/components/MovieCard.tsx
-import Image from "next/image";
 import { Play } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Movie } from "@/types";
@@ -37,7 +35,3 @@ export default function MovieCard({ movie }: MovieCardProps) {
   );
 }
 
-// Exemple d'intégration dans ton MovieCard.tsx
-// ... reste des imports
-
-// Autour de ton bouton Play existant :

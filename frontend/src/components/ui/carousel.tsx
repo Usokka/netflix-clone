@@ -95,6 +95,7 @@ function Carousel({
 
   React.useEffect(() => {
     if (!api) return
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     onSelect(api)
     api.on("reInit", onSelect)
     api.on("select", onSelect)

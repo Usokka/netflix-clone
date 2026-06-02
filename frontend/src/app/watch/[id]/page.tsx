@@ -31,7 +31,7 @@ export default async function WatchPage({ params }: WatchPageProps) {
         <Link href="/" className="text-white flex items-center gap-2 font-semibold">
           <ArrowLeft className="w-6 h-6 transition group-hover:-translate-x-1" />
           <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 pr-2">
-            Retour à l'accueil
+            Retour à l&apos;accueil
           </span>
         </Link>
       </div>

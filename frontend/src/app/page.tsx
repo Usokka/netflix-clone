@@ -37,7 +37,7 @@ export default async function Home() {
             {heroMovie?.title || "Mon Catalogue"}
           </h2>
           <p className="text-xs md:text-sm text-gray-300 font-medium drop-shadow-sm line-clamp-3 hidden sm:block">
-            Découvre ce chef-d'œuvre exclusif disponible dès maintenant sur ta plateforme de streaming.
+            Découvre ce chef-d&apos;œuvre exclusif disponible dès maintenant sur ta plateforme de streaming.
           </p>
           <div className="flex items-center gap-3 pt-2">
             <Link href={heroMovie ? `/watch/${heroMovie.id}` : "#"}>
@@ -46,7 +46,7 @@ export default async function Home() {
               </button>
             </Link>
             <button className="flex items-center gap-2 bg-zinc-500/60 text-white px-4 md:px-7 py-1.5 md:py-2.5 rounded font-bold hover:bg-zinc-500/40 transition text-sm md:text-base backdrop-blur-sm">
-              <Info className="w-4 h-4 md:w-5 md:h-5" /> Plus d'infos
+              <Info className="w-4 h-4 md:w-5 md:h-5" /> Plus d&apos;infos
             </button>
           </div>
         </div>

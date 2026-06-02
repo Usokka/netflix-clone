@@ -41,7 +41,7 @@ export default function Error({
           </button>
           <Link href="/">
             <button className="px-6 py-3 bg-zinc-700 text-white rounded font-bold hover:bg-zinc-600 transition">
-              Retour à l'accueil
+              Retour à l&apos;accueil
             </button>
           </Link>
         </div>
