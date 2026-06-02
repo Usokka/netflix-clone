@@ -72,14 +72,16 @@ void handle_client_request(int client_fd, [[maybe_unused]] int epoll_fd) {
     
     if (method != "GET") {
         std::string response = "HTTP/1.1 405 Method Not Allowed\r\nContent-Length: 0\r\n\r\n";
-        write(client_fd, response.data(), response.size());
+        if (write(client_fd, response.data(), response.size()) < 0) 
+            perror("Erreur d'écriture HTTP");
         close(client_fd);
         return;
     }
     
     if (!is_path_safe(url)) {
         std::string response = "HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n";
-        write(client_fd, response.data(), response.size());
+        if (write(client_fd, response.data(), response.size()) < 0) 
+            perror("Erreur d'écriture HTTP");
         close(client_fd);
         return;
     }
@@ -101,7 +103,8 @@ void handle_client_request(int client_fd, [[maybe_unused]] int epoll_fd) {
     if (!verify_streaming_ticket(ticket, client_ip, requested_movie_id)) {
         std::cout << "[ACCESS DENIED] Requête rejetée pour le film : " << requested_movie_id << " (Ticket absent ou corrompu)" << std::endl;
         std::string response = "HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n";
-        write(client_fd, response.data(), response.size());
+        if (write(client_fd, response.data(), response.size()) < 0) 
+            perror("Erreur d'écriture HTTP");
         close(client_fd);
         return;
     }
@@ -123,7 +126,8 @@ void handle_client_request(int client_fd, [[maybe_unused]] int epoll_fd) {
     if (file_fd == -1) {
         std::cerr << "[HTTP 404] Fichier introuvable : " << file_path << std::endl;
         std::string response = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
-        write(client_fd, response.data(), response.size());
+        if (write(client_fd, response.data(), response.size()) < 0) 
+            perror("Erreur d'écriture HTTP");
         close(client_fd);
         return;
     }
@@ -145,8 +149,9 @@ void handle_client_request(int client_fd, [[maybe_unused]] int epoll_fd) {
                   << "Connection: close\r\n\r\n";
     
     std::string headers = header_stream.str();
-    write(client_fd, headers.data(), headers.size());
-
+    if (write(client_fd, headers.data(), headers.size()) < 0) 
+        perror("Erreur d'écriture HTTP headers");
+    
     off_t offset = 0;
     bool send_success = true;
 
