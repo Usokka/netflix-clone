@@ -1,6 +1,7 @@
 #include "utils.hpp"
 #include <algorithm>
 #include <fstream>   
+#include <sstream>
 #include <jwt-cpp/jwt.h> 
 
 bool is_path_safe(const std::string &path) {
@@ -41,11 +42,9 @@ bool verify_streaming_ticket(const std::string& ticket, const std::string& clien
        std::ifstream pub_file("/etc/secrets/public.pem");
 
         if (!pub_file.is_open()) {
-            // Repli local A : Si exécuté depuis la racine du dossier 'streaming'
             pub_file.open("../infra/secrets/public.pem");
             
             if (!pub_file.is_open()) {
-                // Repli local B : Si exécuté depuis l'intérieur du dossier 'streaming/build'
                 pub_file.open("../../infra/secrets/public.pem");
             }
         }
@@ -63,7 +62,8 @@ bool verify_streaming_ticket(const std::string& ticket, const std::string& clien
         auto decoded = jwt::decode(ticket);
         auto verifier = jwt::verify()
             .allow_algorithm(jwt::algorithm::rs256(public_key, "", "", ""))
-            .with_issuer("netflix-backend");
+            .with_issuer("netflix-backend")
+            .leeway(60);
 
       
         verifier.verify(decoded);

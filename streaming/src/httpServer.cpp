@@ -148,13 +148,26 @@ void handle_client_request(int client_fd, [[maybe_unused]] int epoll_fd) {
     write(client_fd, headers.data(), headers.size());
 
     off_t offset = 0;
-    ssize_t bytes_sent = sendfile(client_fd, file_fd, &offset, file_stat.st_size);
-    if (bytes_sent == -1) {
-        if (errno != EAGAIN && errno != EWOULDBLOCK) {
-            perror("sendfile error");
+    bool send_success = true;
+
+    while (offset < file_stat.st_size) {
+        ssize_t sent = sendfile(client_fd, file_fd, &offset, file_stat.st_size - offset);
+        
+        if (sent <= 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        
+                usleep(2000); 
+                continue;
+            } else {
+                perror("Erreur critique sendfile");
+                send_success = false;
+                break;
+            }
         }
-    } else {
-        std::cout << "[Streaming] " << bytes_sent << " octets envoyés avec succès pour : " << file_path << std::endl;
+    }
+
+    if (send_success) {
+        std::cout << "[Streaming] Fichier COMPLET envoyé (" << offset << " octets) : " << file_path << std::endl;
     }
 
     close(file_fd);

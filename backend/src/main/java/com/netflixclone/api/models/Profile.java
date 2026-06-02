@@ -23,7 +23,6 @@ public class Profile {
     @Column(name = "avatar_url")
     private String avatarUrl;
 
-    // Many profiles belong to one User account
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;

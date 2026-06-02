@@ -18,13 +18,12 @@ public class Subscription {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    // FetchType.LAZY avoids loading the whole User object when scanning subscriptions
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
     @Column(nullable = false)
-    private String plan; // e.g., "STANDARD", "PREMIUM"
+    private String plan;
 
     @Column(name = "started_at", nullable = false)
     private LocalDate startedAt;

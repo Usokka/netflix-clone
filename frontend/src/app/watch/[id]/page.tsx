@@ -10,8 +10,6 @@ interface WatchPageProps {
 
 async function getMovieData(id: string): Promise<Movie> {
   try {
-    // Fetch all movies and find the one with matching ID
-    // Note: In a production app, you'd want a /movies/{id} endpoint
     const movies = await fetchFromBackend<Movie[]>("/movies");
     const movie = movies.find((m) => m.id === id);
     if (!movie) throw new Error("Movie not found");
@@ -46,8 +44,7 @@ export default async function WatchPage({ params }: WatchPageProps) {
 
       <div className="w-full h-full flex items-center justify-center bg-black">
         <div className="w-full max-w-5xl px-4 shadow-2xl shadow-black/80">
-  
-          <VideoPlayer movieId={id} />
+          <VideoPlayer movieId={movie.videoFolderUrl} />
         </div>
       </div>
 

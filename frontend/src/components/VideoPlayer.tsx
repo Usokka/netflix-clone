@@ -36,11 +36,14 @@ export default function VideoPlayer({ movieId }: VideoPlayerProps) {
         // 2. Vérifier si Hls.js est supporté par le navigateur (Cas général : Chrome, Firefox, Arch Chromium...)
         if (Hls.isSupported()) {
           hls = new Hls({
-            // Config cruciale : On intercepte chaque appel réseau de Hls.js pour y injecter notre ticket
-            fetchSetup: (context, init) => {
-              const url = new URL(context.url, window.location.href);
-              url.searchParams.set('ticket', ticket); // Ajoute dynamiquement ?ticket=eyJhbGci...
-              return new Request(url.toString(), init);
+            // On utilise xhrSetup car hls.js utilise XMLHttpRequest par défaut
+            xhrSetup: (xhr, url) => {
+              // On parse l'URL demandée par hls.js
+              const urlObj = new URL(url, window.location.href);
+              // On injecte le jeton JWT
+              urlObj.searchParams.set('ticket', ticket);
+              // On écrase la requête avec la nouvelle URL signée
+              xhr.open('GET', urlObj.toString(), true);
             },
           });
 
@@ -116,6 +119,8 @@ export default function VideoPlayer({ movieId }: VideoPlayerProps) {
         controls
         preload="auto"
         playsInline
+        muted
+        autoPlay
       />
     </div>
   );

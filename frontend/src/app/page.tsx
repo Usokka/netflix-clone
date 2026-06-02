@@ -7,8 +7,8 @@ import Link from "next/link";
 export default async function Home() {
   const [allMovies, actionMovies, sciFiMovies] = await Promise.all([
     fetchFromBackend<Movie[]>("/movies"),
-    fetchFromBackend<Movie[]>("/movies/genre/1"), // Genre Action (ID 1 dans data.sql)
-    fetchFromBackend<Movie[]>("/movies/genre/2"), // Genre Sci-Fi (ID 2 dans data.sql)
+    fetchFromBackend<Movie[]>("/movies/genre/1"), 
+    fetchFromBackend<Movie[]>("/movies/genre/2"), 
   ]);
 
   const heroMovie = allMovies[0];

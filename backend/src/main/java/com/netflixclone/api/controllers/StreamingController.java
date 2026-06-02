@@ -20,18 +20,14 @@ public class StreamingController {
     public ResponseEntity<Map<String, String>> getStreamingTicket(
             @PathVariable String movieId,
             HttpServletRequest request) {
-        
+
         String clientIp = request.getHeader("X-Forwarded-For");
-        if (clientIp == null || clientIp.isEmpty() || "unknown".equalsIgnoreCase(clientIp)) {
+        if (clientIp == null || clientIp.isBlank() || "unknown".equalsIgnoreCase(clientIp))
             clientIp = request.getRemoteAddr();
-        }
-
-        if ("0:0:0:0:0:0:0:1".equals(clientIp) || "127.0.0.1".equals(clientIp)) {
+        if ("0:0:0:0:0:0:0:1".equals(clientIp))
             clientIp = "127.0.0.1";
-        }
 
-        String ticket = streamingService.generateStreamingTicket(movieId, clientIp);
-        
+        String ticket = streamingService.generateStreamingTicket(movieId.toString(), clientIp);
         return ResponseEntity.ok(Map.of("ticket", ticket));
     }
 }

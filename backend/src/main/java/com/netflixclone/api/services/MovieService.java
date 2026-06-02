@@ -32,8 +32,7 @@ public class MovieService {
 
     private MovieCardResponse convertToCardResponse(Movie movie) {
         return MovieCardResponse.builder()
-                .id(movie.getId())
-                .title(movie.getTitle())
+                .id(movie.getId().toString()) 
                 .thumbnailUrl(movie.getThumbnailUrl())
                 .videoFolderUrl(movie.getVideoFolderUrl())
                 .durationSeconds(movie.getDurationSeconds())
