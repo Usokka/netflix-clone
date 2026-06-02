@@ -1,0 +1,18 @@
+name: CI - Infrastructure
+
+on:
+  push:
+    branches: [dev, main]
+    paths:
+      - 'infra/**'
+      - 'docker-compose.yml'
+      - '.env.example'
+      - '.github/workflows/ci-infra.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate docker-compose syntax
+        run: docker compose config
