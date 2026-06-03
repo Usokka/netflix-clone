@@ -96,4 +96,22 @@ public class JwtUtil {
         X509EncodedKeySpec keySpec = new X509EncodedKeySpec(Base64.getDecoder().decode(key));
         return KeyFactory.getInstance("RSA").generatePublic(keySpec);
     }
+
+    public String generateStreamingTicket(String movieId, String clientIp) {
+    try {
+        PrivateKey privateKey = loadPrivateKey(privateKeyPath);
+        long now = System.currentTimeMillis();
+        return Jwts.builder()
+                .subject("streaming-token")
+                .issuer("netflix-backend")
+                .issuedAt(new Date(now))
+                .expiration(new Date(now + 900_000))
+                .claim("movieId", movieId)
+                .claim("ip", clientIp)
+                .signWith(privateKey, Jwts.SIG.RS256)
+                .compact();
+    } catch (Exception e) {
+        throw new RuntimeException("Erreur génération ticket streaming", e);
+    }
+}
 }

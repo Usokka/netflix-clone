@@ -37,9 +37,9 @@ export default async function WatchPage({ params }: WatchPageProps) {
       </div>
 
       <div className="absolute top-8 left-1/2 -translate-x-1/2 z-40 text-center pointer-events-none">
-        <h1 className="text-xl md:text-2xl font-bold text-gray-400 opacity-60">
+{/*         <h1 className="text-xl md:text-2xl font-bold text-gray-400 opacity-60">
           Visionnage de : <span className="text-white opacity-100">{movie.title}</span>
-        </h1>
+        </h1> */}
       </div>
 
       <div className="w-full h-full flex items-center justify-center bg-black">

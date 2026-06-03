@@ -13,8 +13,8 @@ export default function MovieCard({ movie }: MovieCardProps) {
       <CardContent className="p-0 w-full h-full relative">
         <img
           src={movie.thumbnailUrl}
-          alt={movie.title}
-          className="object-cover w-full h-full transition-opacity duration-300 group-hover:opacity-40"
+/*           alt={movie.title}
+ */          className="object-cover w-full h-full transition-opacity duration-300 group-hover:opacity-40"
         />
 
         <div className="absolute inset-0 flex flex-col justify-end p-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-t from-black/80 via-black/40 to-transparent">
@@ -24,8 +24,8 @@ export default function MovieCard({ movie }: MovieCardProps) {
                 <Play className="w-5 h-5 fill-current ml-0.5" />
               </button>
             </Link>
-            <h3 className="font-bold text-sm text-white line-clamp-1">{movie.title}</h3>
-          </div>
+{/*             <h3 className="font-bold text-sm text-white line-clamp-1">{movie.title}</h3>
+ */}          </div>
           <p className="text-xs text-gray-400">
             {Math.floor(movie.durationSeconds / 60)} min
           </p>

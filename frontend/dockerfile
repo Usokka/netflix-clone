@@ -1,4 +1,3 @@
-
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package*.json ./
@@ -8,8 +7,16 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NEXT_FONT_GOOGLE_MOCKED=1
+
+# Valeurs build-time pour les rewrites Next.js (figées dans le bundle)
+ARG BACKEND_URL=http://backend-api:8080
+ARG STREAMING_URL=http://streaming-service:8081
+ENV BACKEND_URL=$BACKEND_URL
+ENV STREAMING_URL=$STREAMING_URL
+
 RUN npm run build
 
 FROM node:20-alpine AS runner
@@ -26,9 +33,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 USER nextjs
-
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
-
 CMD ["node", "server.js"]

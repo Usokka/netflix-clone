@@ -1,5 +1,4 @@
 'use client';
-
 import React, { useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
 
@@ -21,29 +20,26 @@ export default function VideoPlayer({ movieId }: VideoPlayerProps) {
 
     const initializeVideo = async () => {
       try {
-        // 1. Récupérer le ticket de streaming AVANT d'initialiser HLS
-        // Cela garantit que le ticket est disponible pour le fetchSetup
-        const ticketRes = await fetch(`/api/v1/stream/${movieId}/ticket`);
+        const ticketRes = await fetch(`/api/v1/stream/${movieId}/ticket`, {
+          credentials: 'include', // ← envoie le cookie AUTH_TOKEN
+        });
         if (!ticketRes.ok) throw new Error('Impossible de récupérer le ticket de streaming');
-        const ticketData = await ticketRes.json();
-        const ticket = ticketData.ticket;
+        const { ticket } = await ticketRes.json();
 
         if (!isMounted) return;
 
-        // L'URL du manifeste cible le rewrite Next.js /video/*
-        const manifestUrl = `/video/${movieId}/playlist.m3u8`;
+        // ticket dans l'URL dès le départ — fonctionne avec XHR et fetch
+        const manifestUrl = `/video/${movieId}/playlist.m3u8?ticket=${ticket}`;
 
-        // 2. Vérifier si Hls.js est supporté par le navigateur (Cas général : Chrome, Firefox, Arch Chromium...)
         if (Hls.isSupported()) {
           hls = new Hls({
-            // On utilise xhrSetup car hls.js utilise XMLHttpRequest par défaut
+            // xhrSetup : appelé sur CHAQUE requête XHR (manifeste + segments .ts)
+            // Réinjecte le ticket sur les segments aussi, car leurs URLs
+            // dans le .m3u8 sont relatives et ne contiennent pas le ticket
             xhrSetup: (xhr, url) => {
-              // On parse l'URL demandée par hls.js
-              const urlObj = new URL(url, window.location.href);
-              // On injecte le jeton JWT
-              urlObj.searchParams.set('ticket', ticket);
-              // On écrase la requête avec la nouvelle URL signée
-              xhr.open('GET', urlObj.toString(), true);
+              if (!url.includes('ticket=')) {
+                xhr.open('GET', `${url}?ticket=${ticket}`, true);
+              }
             },
           });
 
@@ -53,21 +49,22 @@ export default function VideoPlayer({ movieId }: VideoPlayerProps) {
           hls.on(Hls.Events.MANIFEST_PARSED, () => {
             if (isMounted) {
               setLoading(false);
-              video.play().catch(() => console.log("Lecture automatique bloquée par le navigateur"));
+              video.play().catch(() =>
+                console.log('Lecture automatique bloquée par le navigateur')
+              );
             }
           });
 
-          hls.on(Hls.Events.ERROR, (event, data) => {
+          hls.on(Hls.Events.ERROR, (_, data) => {
             if (data.fatal && isMounted) {
               console.error('Erreur HLS fatale:', data);
               setError(`Erreur de streaming : ${data.type}`);
               setLoading(false);
             }
           });
-        }
-        // 3. Cas particulier (Safari / iOS) qui gère le HLS nativement sans bibliothèque
-        else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-          video.src = `${manifestUrl}?ticket=${ticket}`;
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+          // Safari — HLS natif
+          video.src = manifestUrl;
           video.addEventListener('loadedmetadata', () => {
             if (isMounted) {
               setLoading(false);
@@ -75,7 +72,7 @@ export default function VideoPlayer({ movieId }: VideoPlayerProps) {
             }
           });
         } else {
-          setError("Votre navigateur ne supporte pas le streaming HLS.");
+          setError('Votre navigateur ne supporte pas le streaming HLS.');
           setLoading(false);
         }
       } catch (err) {
@@ -89,12 +86,9 @@ export default function VideoPlayer({ movieId }: VideoPlayerProps) {
 
     initializeVideo();
 
-    // Nettoyage au démontage du composant
     return () => {
       isMounted = false;
-      if (hls) {
-        hls.destroy();
-      }
+      if (hls) hls.destroy();
     };
   }, [movieId]);
 
@@ -110,7 +104,7 @@ export default function VideoPlayer({ movieId }: VideoPlayerProps) {
     <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden group">
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center bg-neutral-950 z-10">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-600"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-600" />
         </div>
       )}
       <video
