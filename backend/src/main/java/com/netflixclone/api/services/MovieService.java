@@ -4,6 +4,11 @@ import com.netflixclone.api.dtos.MovieCardResponse;
 import com.netflixclone.api.models.Movie;
 import com.netflixclone.api.repositories.MovieRepository;
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.data.domain.Pageable;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,11 +24,11 @@ public class MovieService {
 
     private final MovieRepository movieRepository;
 
+
     @Transactional(readOnly = true)
-    public List<MovieCardResponse> getAllMovies() {
-        return movieRepository.findAll().stream()
-                .map(this::convertToCardResponse)
-                .collect(Collectors.toList());
+    public Page<MovieCardResponse> getAllMovies(Pageable pageable) {
+        return movieRepository.findAll(pageable)
+                .map(this::convertToCardResponse); 
     }
 
     @Transactional(readOnly = true)
@@ -50,12 +55,33 @@ public class MovieService {
                 .collect(Collectors.toList());
     }
 
+    @Cacheable(value = "trendingMovies")
+    @Transactional(readOnly = true)
+    public List<MovieCardResponse> getTrendingMovies() {
+        return movieRepository.findAll(PageRequest.of(0, 10)).stream()
+                .map(this::convertToCardResponse)
+                .collect(Collectors.toList());
+    }
+
+
     private MovieCardResponse convertToCardResponse(Movie movie) {
         return MovieCardResponse.builder()
                 .id(movie.getId().toString())
+                .title(movie.getTitle())
+                .description(movie.getDescription())
                 .thumbnailUrl(movie.getThumbnailUrl())
                 .videoFolderUrl(movie.getVideoFolderUrl())
                 .durationSeconds(movie.getDurationSeconds())
+                .releaseYear(movie.getReleaseYear())
+                .maturityRating(movie.getMaturityRating())
+                .language(movie.getLanguage())
+                .genres(
+                    movie.getGenres() != null
+                        ? movie.getGenres().stream()
+                            .map(g -> g.getName())
+                            .collect(Collectors.toList())
+                        : List.of()
+                )
                 .build();
     }
 }

@@ -3,8 +3,14 @@ package com.netflixclone.api.controllers;
 import com.netflixclone.api.dtos.MovieCardResponse;
 import com.netflixclone.api.services.MovieService;
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import org.springframework.cache.annotation.Cacheable; // À ajouter
+
 
 import java.util.List;
 
@@ -16,8 +22,13 @@ public class MovieController {
     private final MovieService movieService;
 
     @GetMapping
-    public ResponseEntity<List<MovieCardResponse>> getAllMovies() {
-        return ResponseEntity.ok(movieService.getAllMovies());
+    public ResponseEntity<Page<MovieCardResponse>> getAllMovies(Pageable pageable) {
+        return ResponseEntity.ok(movieService.getAllMovies(pageable));
+    }
+    
+    @GetMapping("/trending")
+    public ResponseEntity<List<MovieCardResponse>> getTrendingMovies() {
+        return ResponseEntity.ok(movieService.getTrendingMovies());
     }
 
     @GetMapping("/{id}")

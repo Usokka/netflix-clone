@@ -2,6 +2,7 @@ package com.netflixclone.api.security;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
+import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -32,9 +33,17 @@ public class JwtUtil {
     @Value("${spring.jwt.access-expiration}")
     private long jwtExpiration;
 
+    private PrivateKey privateKey;
+    private PublicKey publicKey;
+    @PostConstruct
+    public void initKeys() throws Exception {
+        this.privateKey = loadPrivateKey(privateKeyPath);
+        this.publicKey = loadPublicKey(publicKeyPath);
+    }
+
     public String generateToken(UserDetails userDetails) {
         try {
-            PrivateKey privateKey = loadPrivateKey(privateKeyPath);
+            privateKey = loadPrivateKey(privateKeyPath);
             return Jwts.builder()
                     .subject(userDetails.getUsername())
                     .issuedAt(new Date(System.currentTimeMillis()))
@@ -70,7 +79,7 @@ public class JwtUtil {
 
     private Claims extractAllClaims(String token) {
         try {
-            PublicKey publicKey = loadPublicKey(publicKeyPath);
+            publicKey = loadPublicKey(publicKeyPath);
             return Jwts.parser()
                     .verifyWith(publicKey)
                     .build()

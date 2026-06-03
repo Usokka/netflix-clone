@@ -2,6 +2,8 @@ package com.netflixclone.api.config;
 
 import com.netflixclone.api.security.CustomUserDetailsService;
 import com.netflixclone.api.security.JwtAuthenticationFilter;
+
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -31,17 +33,36 @@ public class SecurityConfig {
     private final CustomUserDetailsService userDetailsService;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
-    @Bean
+@Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(AbstractHttpConfigurer::disable)
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/v1/auth/**").permitAll()
-                .requestMatchers("/api/v1/movies/**").permitAll()
-                .requestMatchers("/api/v1/stream/**").authenticated()  // ← ticket = auth requise
-                .anyRequest().authenticated()
+            
+            .exceptionHandling(exceptions -> exceptions
+                .authenticationEntryPoint((request, response, authException) -> {
+                    response.setContentType("application/json;charset=UTF-8");
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.getWriter().write(String.format(
+                        "{\"timestamp\": \"%s\", \"status\": 401, \"message\": \"Accès refusé : Authentification requise (Token manquant ou invalide).\"}",
+                        java.time.LocalDateTime.now()
+                    ));
+                })
+                .accessDeniedHandler((request, response, accessDeniedException) -> {
+                    response.setContentType("application/json;charset=UTF-8");
+                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                    response.getWriter().write(String.format(
+                        "{\"timestamp\": \"%s\", \"status\": 403, \"message\": \"Accès refusé : Permissions insuffisantes.\"}",
+                        java.time.LocalDateTime.now()
+                    ));
+                })
             )
+
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/health").permitAll() // Seules ces routes sont publiques
+                .anyRequest().authenticated() 
+            )
+            
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             )
