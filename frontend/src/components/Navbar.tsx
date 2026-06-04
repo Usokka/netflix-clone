@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Bell, LogOut, Users } from "lucide-react";
+import { Search, Bell, LogOut, Users, CreditCard } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import { AuthResponse } from "@/types";
 import { useProfile } from "@/context/ProfileContext";
@@ -13,17 +13,14 @@ export default function Navbar() {
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   
-  // On récupère le profil actif depuis le contexte global
   const { activeProfile, setActiveProfile } = useProfile();
 
-  // Scroll → fond de la navbar
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 0);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Ferme le dropdown au clic extérieur
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -37,7 +34,7 @@ export default function Navbar() {
   const handleLogout = async () => {
     try {
       await apiClient.post<AuthResponse>("/auth/logout");
-      setActiveProfile(null); // On vide le profil actif en local
+      setActiveProfile(null);
     } catch (err) {
       console.error("Échec de la déconnexion :", err);
     } finally {
@@ -56,7 +53,6 @@ export default function Navbar() {
         isScrolled ? "bg-[#141414]" : "bg-gradient-to-b from-black/80 to-transparent"
       }`}
     >
-      {/* Gauche : Logo + liens */}
       <div className="flex items-center gap-8">
         <h1
           onClick={() => router.push("/")}
@@ -72,18 +68,15 @@ export default function Navbar() {
         </ul>
       </div>
 
-      {/* Droite : Actions + Profil */}
       <div className="flex items-center gap-6 text-white">
         <Search className="w-5 h-5 cursor-pointer hover:text-gray-300 transition" />
         <Bell className="w-5 h-5 cursor-pointer hover:text-gray-300 transition" />
 
-        {/* Avatar + dropdown */}
         <div className="relative" ref={dropdownRef}>
           <div
             onClick={() => setShowDropdown((prev) => !prev)}
             className="w-8 h-8 rounded overflow-hidden cursor-pointer border border-transparent hover:border-white transition"
           >
-            {/* On affiche l'avatar du profil, sinon un fallback */}
             <img
               src={activeProfile?.avatarUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=fallback`}
               alt="Profil"
@@ -92,22 +85,34 @@ export default function Navbar() {
           </div>
 
           {showDropdown && (
-            <div className="absolute right-0 mt-3 w-48 bg-black/95 border border-zinc-800 rounded shadow-md py-2 text-sm text-gray-200 z-50 backdrop-blur-sm">
+            <div className="absolute right-0 mt-3 w-56 bg-black/95 border border-zinc-800 rounded shadow-md py-2 text-sm text-gray-200 z-50 backdrop-blur-sm">
               <div className="px-4 py-2 border-b border-zinc-800 text-xs text-gray-400 truncate">
                 {activeProfile?.name || "Invité"}
               </div>
               
               <button
                 onClick={handleChangeProfile}
-                className="w-full text-left px-4 py-2.5 hover:bg-zinc-900 transition flex items-center gap-2 font-medium"
+                className="w-full text-left px-4 py-2.5 hover:bg-zinc-900 transition flex items-center gap-3 font-medium"
               >
                 <Users className="w-4 h-4" />
                 Changer de profil
               </button>
 
+              {/* NOUVEAU BOUTON COMPTE */}
+              <button
+                onClick={() => {
+                  setShowDropdown(false);
+                  router.push("/account");
+                }}
+                className="w-full text-left px-4 py-2.5 hover:bg-zinc-900 transition flex items-center gap-3 font-medium border-b border-zinc-800"
+              >
+                <CreditCard className="w-4 h-4" />
+                Compte & Abonnements
+              </button>
+
               <button
                 onClick={handleLogout}
-                className="w-full text-left px-4 py-2.5 hover:bg-zinc-900 transition flex items-center gap-2 text-red-500 font-medium"
+                className="w-full text-left px-4 py-2.5 hover:bg-zinc-900 transition flex items-center gap-3 text-red-500 font-medium"
               >
                 <LogOut className="w-4 h-4" />
                 Se déconnecter

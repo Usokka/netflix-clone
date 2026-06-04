@@ -149,7 +149,7 @@ export default function VideoPlayer({ movieId }: VideoPlayerProps) {
             Plus tard
           </button>
           <button
-            onClick={() => router.push('/')}
+            onClick={() => router.push('/plans')}
             className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-3 rounded transition shadow-lg shadow-red-600/20"
           >
             S'abonner maintenant

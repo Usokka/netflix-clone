@@ -5,10 +5,12 @@ import com.netflixclone.api.models.Subscription;
 import com.netflixclone.api.models.User;
 import com.netflixclone.api.repositories.SubscriptionRepository;
 import com.netflixclone.api.repositories.UserRepository;
+import org.springframework.data.redis.core.StringRedisTemplate; 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.time.Duration;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -18,6 +20,7 @@ public class SubscriptionService {
 
     private final SubscriptionRepository subscriptionRepository;
     private final UserRepository userRepository;
+    private final StringRedisTemplate redisTemplate; 
     
 
     public void createOrUpdateSubscription(String email, String plan) {
@@ -34,8 +37,7 @@ public class SubscriptionService {
 
         subscriptionRepository.save(subscription);
         
-        // C'est ici qu'on mettrait à jour la clé Redis :
-        // redisTemplate.opsForValue().set("subscription:" + user.getId(), "true", Duration.ofMinutes(15));
+        redisTemplate.opsForValue().set("subscription:active:" + user.getEmail(), "true", Duration.ofMinutes(15));
     }
 
     public List<SubscriptionResponse> getUserSubscriptions(String email) {

@@ -33,12 +33,13 @@ export interface Profile {
   avatarUrl?: string;
 }
 
+// MISE À JOUR ICI
 export interface Subscription {
   id: string; // UUID
   plan: string;
   startedAt: string; 
-  expiresAt?: string;
-  isActive: boolean;
+  expiresAt: string;
+  active: boolean; // Corrigé pour correspondre au DTO Java
 }
 
 export interface AuthResponse {
