@@ -2,6 +2,7 @@
 
 export interface Movie {
   id: string; // UUID venant du backend Java
+  title:string;
   thumbnailUrl: string;
   videoFolderUrl: string;
   durationSeconds: number;

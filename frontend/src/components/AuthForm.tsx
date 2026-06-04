@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiClient } from '@/lib/api';
+import { apiClient } from '@/lib/apiClient';
 import { AuthResponse } from '@/types';
 
 interface AuthFormProps {
@@ -29,7 +29,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
       await apiClient.post<AuthResponse>(endpoint, { email, password });
 
       if (isLogin) {
-        router.push('/');
+        router.push('/profiles');
       } else {
         alert('Compte créé avec succès ! Vous pouvez maintenant vous connecter.');
         router.push('/login');

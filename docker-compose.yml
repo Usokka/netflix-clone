@@ -69,6 +69,7 @@ services:
       - "3000:3000"
     environment:
       - BACKEND_URL=http://backend-api:8080
+      - API_INTERNAL_URL=http://backend-api:8080
       - STREAMING_URL=http://streaming-service:8081
       - NODE_ENV=production
     depends_on:

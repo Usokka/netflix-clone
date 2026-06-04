@@ -2,30 +2,25 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Bell, LogOut } from "lucide-react";
-import { apiClient } from "@/lib/api";
+import { Search, Bell, LogOut, Users } from "lucide-react";
+import { apiClient } from "@/lib/apiClient";
 import { AuthResponse } from "@/types";
+import { useProfile } from "@/context/ProfileContext";
 
 export default function Navbar() {
   const router = useRouter();
   const [isScrolled, setIsScrolled] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  
+  // On récupère le profil actif depuis le contexte global
+  const { activeProfile, setActiveProfile } = useProfile();
 
   // Scroll → fond de la navbar
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 0);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  // Récupère l'email du user connecté depuis /auth/me
-  useEffect(() => {
-    apiClient
-      .get<{ email: string }>("/auth/me")
-      .then((data) => setUserEmail(data.email))
-      .catch(() => setUserEmail(null));
   }, []);
 
   // Ferme le dropdown au clic extérieur
@@ -42,11 +37,17 @@ export default function Navbar() {
   const handleLogout = async () => {
     try {
       await apiClient.post<AuthResponse>("/auth/logout");
+      setActiveProfile(null); // On vide le profil actif en local
     } catch (err) {
       console.error("Échec de la déconnexion :", err);
     } finally {
       router.push("/login");
     }
+  };
+
+  const handleChangeProfile = () => {
+    setActiveProfile(null);
+    router.push("/profiles");
   };
 
   return (
@@ -82,18 +83,28 @@ export default function Navbar() {
             onClick={() => setShowDropdown((prev) => !prev)}
             className="w-8 h-8 rounded overflow-hidden cursor-pointer border border-transparent hover:border-white transition"
           >
+            {/* On affiche l'avatar du profil, sinon un fallback */}
             <img
-              src="https://api.dicebear.com/7.x/bottts/svg?seed=Badis"
+              src={activeProfile?.avatarUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=fallback`}
               alt="Profil"
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover bg-zinc-800"
             />
           </div>
 
           {showDropdown && (
             <div className="absolute right-0 mt-3 w-48 bg-black/95 border border-zinc-800 rounded shadow-md py-2 text-sm text-gray-200 z-50 backdrop-blur-sm">
               <div className="px-4 py-2 border-b border-zinc-800 text-xs text-gray-400 truncate">
-                {userEmail ?? "Chargement..."}
+                {activeProfile?.name || "Invité"}
               </div>
+              
+              <button
+                onClick={handleChangeProfile}
+                className="w-full text-left px-4 py-2.5 hover:bg-zinc-900 transition flex items-center gap-2 font-medium"
+              >
+                <Users className="w-4 h-4" />
+                Changer de profil
+              </button>
+
               <button
                 onClick={handleLogout}
                 className="w-full text-left px-4 py-2.5 hover:bg-zinc-900 transition flex items-center gap-2 text-red-500 font-medium"

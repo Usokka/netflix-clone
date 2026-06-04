@@ -5,6 +5,8 @@ import lombok.*;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 @Entity
 @Table(name = "genres")
 @Getter
@@ -23,5 +25,6 @@ public class Genre {
 
     @ManyToMany(mappedBy = "genres", fetch = FetchType.LAZY)
     @Builder.Default
+    @JsonIgnore
     private List<Movie> movies = new ArrayList<>();
 }

@@ -2,7 +2,7 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { Movie } from "@/types";
 import VideoPlayer from "@/components/VideoPlayer";
-import { fetchFromBackend } from "@/lib/api";
+import { serverApiClient } from "@/lib/serverApiClient";
 
 interface WatchPageProps {
   params: Promise<{ id: string }>;
@@ -10,8 +10,7 @@ interface WatchPageProps {
 
 async function getMovieData(id: string): Promise<Movie> {
   try {
-    const movies = await fetchFromBackend<Movie[]>("/movies");
-    const movie = movies.find((m) => m.id === id);
+    const movie = await serverApiClient.get<Movie>(`/movies/${id}`);
     if (!movie) throw new Error("Movie not found");
     return movie;
   } catch (error) {

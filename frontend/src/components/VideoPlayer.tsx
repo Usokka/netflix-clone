@@ -1,6 +1,8 @@
 'use client';
 import React, { useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
+import { apiClient } from '@/lib/apiClient'; 
+import { useProfile } from '@/context/ProfileContext'; 
 
 interface VideoPlayerProps {
   movieId: string;
@@ -10,32 +12,31 @@ export default function VideoPlayer({ movieId }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  
+  // On récupère le profil actif
+  const { activeProfile } = useProfile();
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || !activeProfile) return;
 
     let hls: Hls | null = null;
     let isMounted = true;
 
     const initializeVideo = async () => {
       try {
-        const ticketRes = await fetch(`/api/v1/stream/${movieId}/ticket`, {
-          credentials: 'include', // ← envoie le cookie AUTH_TOKEN
-        });
-        if (!ticketRes.ok) throw new Error('Impossible de récupérer le ticket de streaming');
-        const { ticket } = await ticketRes.json();
+        // Remplacement du fetch brut par l'apiClient
+        const { ticket } = await apiClient.get<{ ticket: string }>(
+          `/stream/${movieId}/ticket`, 
+          activeProfile.id
+        );
 
         if (!isMounted) return;
 
-        // ticket dans l'URL dès le départ — fonctionne avec XHR et fetch
         const manifestUrl = `/video/${movieId}/playlist.m3u8?ticket=${ticket}`;
 
         if (Hls.isSupported()) {
           hls = new Hls({
-            // xhrSetup : appelé sur CHAQUE requête XHR (manifeste + segments .ts)
-            // Réinjecte le ticket sur les segments aussi, car leurs URLs
-            // dans le .m3u8 sont relatives et ne contiennent pas le ticket
             xhrSetup: (xhr, url) => {
               if (!url.includes('ticket=')) {
                 xhr.open('GET', `${url}?ticket=${ticket}`, true);
@@ -63,7 +64,6 @@ export default function VideoPlayer({ movieId }: VideoPlayerProps) {
             }
           });
         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-          // Safari — HLS natif
           video.src = manifestUrl;
           video.addEventListener('loadedmetadata', () => {
             if (isMounted) {
@@ -78,6 +78,7 @@ export default function VideoPlayer({ movieId }: VideoPlayerProps) {
       } catch (err) {
         if (isMounted) {
           console.error(err);
+          // C'est cette erreur que tu vois actuellement à l'écran
           setError("Échec de l'authentification au flux vidéo.");
           setLoading(false);
         }
@@ -90,7 +91,7 @@ export default function VideoPlayer({ movieId }: VideoPlayerProps) {
       isMounted = false;
       if (hls) hls.destroy();
     };
-  }, [movieId]);
+  }, [movieId, activeProfile]); // <-- Ajout de activeProfile aux dépendances
 
   if (error) {
     return (
