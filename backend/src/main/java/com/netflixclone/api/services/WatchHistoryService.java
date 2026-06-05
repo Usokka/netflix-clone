@@ -67,7 +67,7 @@ public class WatchHistoryService {
         Profile profile = profileRepository.findById(profileId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Profil introuvable"));
 
-        return watchHistoryRepository.findAllByProfileOrderByUpdatedAtDesc(profile)
+        return watchHistoryRepository.findAllByProfileOrderByWatchedAtDesc(profile)
                 .stream()
                 .map(history -> {
                     Movie movie = history.getMovie(); 
