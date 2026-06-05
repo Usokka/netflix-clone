@@ -55,6 +55,23 @@ public class JwtUtil {
         }
     }
 
+    public String generateRefreshToken(UserDetails userDetails) {
+        try {
+            privateKey = loadPrivateKey(privateKeyPath);
+            // Durée de vie de 7 jours (en millisecondes)
+            long refreshExpiration = 7L * 24 * 60 * 60 * 1000; 
+            
+            return Jwts.builder()
+                    .subject(userDetails.getUsername())
+                    .issuedAt(new Date(System.currentTimeMillis()))
+                    .expiration(new Date(System.currentTimeMillis() + refreshExpiration))
+                    .signWith(privateKey, Jwts.SIG.RS256)
+                    .compact();
+        } catch (Exception e) {
+            throw new RuntimeException("Erreur de génération du Refresh JWT", e);
+        }
+    }
+
     public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);
     }
