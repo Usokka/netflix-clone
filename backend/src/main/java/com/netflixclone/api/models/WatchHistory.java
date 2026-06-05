@@ -30,6 +30,7 @@ public class WatchHistory {
     private int stoppedAtSeconds; // C'est cette valeur que le lecteur HLS enverra régulièrement
 
     @Column(name = "watched_at", nullable = false)
+    @Setter
     private LocalDateTime watchedAt;
 
     @PrePersist

@@ -12,6 +12,8 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode
+@Builder
+@Data
 public class WatchHistoryId implements Serializable {
     @Column(name = "profile_id")
     private UUID profileId;
