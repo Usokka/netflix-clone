@@ -19,4 +19,4 @@ infra/terraform/*.tfstate.backup
 
 **/playlist.m3u8
 **/*.m3u8
-**/*.ts
+segment*.ts
