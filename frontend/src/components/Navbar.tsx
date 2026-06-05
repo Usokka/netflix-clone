@@ -11,7 +11,13 @@ export default function Navbar() {
   const router = useRouter();
   const [isScrolled, setIsScrolled] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  
+  // NOUVEAU : États pour la recherche
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   
   const { activeProfile, setActiveProfile } = useProfile();
 
@@ -47,6 +53,14 @@ export default function Navbar() {
     router.push("/profiles");
   };
 
+  // NOUVEAU : Soumission du formulaire de recherche
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+    }
+  };
+
   return (
     <nav
       className={`fixed top-0 w-full h-16 flex items-center justify-between px-4 md:px-12 z-50 transition-colors duration-300 ${
@@ -69,7 +83,39 @@ export default function Navbar() {
       </div>
 
       <div className="flex items-center gap-6 text-white">
-        <Search className="w-5 h-5 cursor-pointer hover:text-gray-300 transition" />
+        
+        {/* NOUVEAU : Barre de recherche dynamique */}
+        <div className="flex items-center">
+          <form 
+            onSubmit={handleSearch} 
+            className={`flex items-center transition-all duration-300 ease-in-out ${
+              isSearchOpen ? 'bg-black/80 border border-white p-1.5' : 'bg-transparent border-transparent p-1.5'
+            }`}
+          >
+            <Search 
+              className="w-5 h-5 cursor-pointer hover:text-gray-300 transition" 
+              onClick={() => {
+                setIsSearchOpen(!isSearchOpen);
+                if (!isSearchOpen) setTimeout(() => searchInputRef.current?.focus(), 100);
+              }} 
+            />
+            <input
+              ref={searchInputRef}
+              type="text"
+              placeholder="Titres, mots-clés..."
+              className={`bg-transparent border-none outline-none text-sm text-white transition-all duration-300 ease-in-out placeholder-gray-400 ${
+                isSearchOpen ? 'w-32 md:w-56 ml-3 opacity-100' : 'w-0 opacity-0'
+              }`}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onBlur={() => {
+                // Se referme si on clique ailleurs et que c'est vide
+                if (!searchQuery) setIsSearchOpen(false);
+              }}
+            />
+          </form>
+        </div>
+
         <Bell className="w-5 h-5 cursor-pointer hover:text-gray-300 transition" />
 
         <div className="relative" ref={dropdownRef}>
@@ -89,33 +135,14 @@ export default function Navbar() {
               <div className="px-4 py-2 border-b border-zinc-800 text-xs text-gray-400 truncate">
                 {activeProfile?.name || "Invité"}
               </div>
-              
-              <button
-                onClick={handleChangeProfile}
-                className="w-full text-left px-4 py-2.5 hover:bg-zinc-900 transition flex items-center gap-3 font-medium"
-              >
-                <Users className="w-4 h-4" />
-                Changer de profil
+              <button onClick={handleChangeProfile} className="w-full text-left px-4 py-2.5 hover:bg-zinc-900 transition flex items-center gap-3 font-medium">
+                <Users className="w-4 h-4" /> Changer de profil
               </button>
-
-              {/* NOUVEAU BOUTON COMPTE */}
-              <button
-                onClick={() => {
-                  setShowDropdown(false);
-                  router.push("/account");
-                }}
-                className="w-full text-left px-4 py-2.5 hover:bg-zinc-900 transition flex items-center gap-3 font-medium border-b border-zinc-800"
-              >
-                <CreditCard className="w-4 h-4" />
-                Compte & Abonnements
+              <button onClick={() => { setShowDropdown(false); router.push("/account"); }} className="w-full text-left px-4 py-2.5 hover:bg-zinc-900 transition flex items-center gap-3 font-medium border-b border-zinc-800">
+                <CreditCard className="w-4 h-4" /> Compte & Abonnements
               </button>
-
-              <button
-                onClick={handleLogout}
-                className="w-full text-left px-4 py-2.5 hover:bg-zinc-900 transition flex items-center gap-3 text-red-500 font-medium"
-              >
-                <LogOut className="w-4 h-4" />
-                Se déconnecter
+              <button onClick={handleLogout} className="w-full text-left px-4 py-2.5 hover:bg-zinc-900 transition flex items-center gap-3 text-red-500 font-medium">
+                <LogOut className="w-4 h-4" /> Se déconnecter
               </button>
             </div>
           )}
