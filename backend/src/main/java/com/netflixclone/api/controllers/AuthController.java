@@ -36,12 +36,14 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request, HttpServletResponse response) {
         authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
-        );
+                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
 
         UserDetails userDetails = userDetailsService.loadUserByUsername(request.getEmail());
-        String jwt = jwtUtil.generateToken(userDetails);
 
+        String jwt = jwtUtil.generateToken(userDetails);
+        String refreshJwt = jwtUtil.generateRefreshToken(userDetails); // déjà dans JwtUtil ✅
+
+        // AUTH_TOKEN (15 min)
         Cookie authCookie = new Cookie("AUTH_TOKEN", jwt);
         authCookie.setHttpOnly(true);
         authCookie.setSecure(false);
@@ -49,7 +51,50 @@ public class AuthController {
         authCookie.setMaxAge((int) jwtUtil.getJwtExpiration() / 1000);
         response.addCookie(authCookie);
 
+        // REFRESH_TOKEN (7 jours) — MANQUAIT
+        Cookie refreshCookie = new Cookie("REFRESH_TOKEN", refreshJwt);
+        refreshCookie.setHttpOnly(true);
+        refreshCookie.setSecure(false);
+        refreshCookie.setPath("/api/v1/auth/refresh"); // scope limité ✅
+        refreshCookie.setMaxAge(7 * 24 * 60 * 60);
+        response.addCookie(refreshCookie);
+
         return ResponseEntity.ok(Map.of("message", "Connexion réussie"));
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<?> refresh(HttpServletRequest request, HttpServletResponse response) {
+        if (request.getCookies() == null)
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Pas de refresh token"));
+
+        String refreshToken = Arrays.stream(request.getCookies())
+                .filter(c -> "REFRESH_TOKEN".equals(c.getName()))
+                .map(Cookie::getValue)
+                .findFirst()
+                .orElse(null);
+
+        if (refreshToken == null)
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Refresh token manquant"));
+
+        try {
+            String email = jwtUtil.extractUsername(refreshToken);
+            UserDetails userDetails = userDetailsService.loadUserByUsername(email);
+
+            // Génère un nouveau ACCESS token
+            String newJwt = jwtUtil.generateToken(userDetails);
+
+            Cookie authCookie = new Cookie("AUTH_TOKEN", newJwt);
+            authCookie.setHttpOnly(true);
+            authCookie.setSecure(false);
+            authCookie.setPath("/");
+            authCookie.setMaxAge((int) jwtUtil.getJwtExpiration() / 1000);
+            response.addCookie(authCookie);
+
+            return ResponseEntity.ok(Map.of("message", "Token rafraîchi"));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Refresh token invalide ou expiré"));
+        }
     }
 
     @PostMapping("/register")

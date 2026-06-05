@@ -24,10 +24,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtUtil jwtUtil;
     private final CustomUserDetailsService userDetailsService;
 
+@Override
+    protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
+        String path = request.getRequestURI();
+        return path.contains("/api/v1/auth/login") ||
+               path.contains("/api/v1/auth/register") ||
+               path.contains("/api/v1/auth/refresh") ||
+               path.contains("/api/v1/health");
+    }
+
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
-        
         
         String jwt = null;
         if (request.getCookies() != null) {
