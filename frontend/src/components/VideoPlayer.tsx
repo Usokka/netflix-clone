@@ -8,19 +8,35 @@ import Modal from '@/components/ui/modal';
 import { Lock } from 'lucide-react';
 
 interface VideoPlayerProps {
-  movieId: string;
+  movieId: string; // NOUVEAU : Le vrai UUID pour la base de données
+  videoFolderUrl: string; // NOUVEAU : Le nom du dossier pour le flux HLS
+  timestamp?: number;
 }
 
-export default function VideoPlayer({ movieId }: VideoPlayerProps) {
+export default function VideoPlayer({ movieId, videoFolderUrl, timestamp = 0 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  
-  // Nouvel état pour notre modal d'abonnement
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   
   const { activeProfile } = useProfile();
+
+  const lastSavedTimeRef = useRef<number>(timestamp);
+  const currentTimeRef = useRef<number>(timestamp);
+
+  const saveProgress = async (time: number) => {
+    if (!activeProfile || time === lastSavedTimeRef.current) return;
+    try {
+      await apiClient.post('/watch-history', {
+        movieId: movieId, // Ici, c'est le vrai UUID qui part vers PostgreSQL
+        timestamp: Math.floor(time),
+      }, activeProfile.id);
+      lastSavedTimeRef.current = time;
+    } catch (err) {
+      console.error("Erreur sauvegarde progression :", err);
+    }
+  };
 
   useEffect(() => {
     const video = videoRef.current;
@@ -31,16 +47,19 @@ export default function VideoPlayer({ movieId }: VideoPlayerProps) {
 
     const initializeVideo = async () => {
       try {
+        // CORRECTION : On utilise videoFolderUrl pour demander le ticket HLS
         const { ticket } = await apiClient.get<{ ticket: string }>(
-          `/stream/${movieId}/ticket`, 
+          `/stream/${videoFolderUrl}/ticket`, 
           activeProfile.id
         );
 
         if (!isMounted) return;
 
-        const manifestUrl = `/video/${movieId}/playlist.m3u8?ticket=${ticket}`;
+        // CORRECTION : On utilise videoFolderUrl pour le chemin du fichier m3u8
+        const manifestUrl = `/video/${videoFolderUrl}/playlist.m3u8?ticket=${ticket}`;
 
-        // ... (Le reste de ta configuration HLS.js reste identique)
+
+
         if (Hls.isSupported()) {
           hls = new Hls({
             xhrSetup: (xhr, url) => {
@@ -48,6 +67,7 @@ export default function VideoPlayer({ movieId }: VideoPlayerProps) {
                 xhr.open('GET', `${url}?ticket=${ticket}`, true);
               }
             },
+            startPosition: timestamp > 0 ? timestamp : -1, // NOUVEAU : Démarrer au bon moment (HLS)
           });
 
           hls.loadSource(manifestUrl);
@@ -70,6 +90,8 @@ export default function VideoPlayer({ movieId }: VideoPlayerProps) {
           video.src = manifestUrl;
           video.addEventListener('loadedmetadata', () => {
             if (isMounted) {
+              // NOUVEAU : Démarrer au bon moment (Safari / iOS natif)
+              if (timestamp > 0) video.currentTime = timestamp;
               setLoading(false);
               video.play();
             }
@@ -78,8 +100,6 @@ export default function VideoPlayer({ movieId }: VideoPlayerProps) {
       } catch (err: any) {
         if (isMounted) {
           setLoading(false);
-          // On vérifie si l'erreur vient du statut d'abonnement (403 Forbidden)
-          // Selon la façon dont apiClient formate les erreurs, on vérifie le status ou le message
           if (err.status === 403 || err.message?.includes('inactif') || err.message?.includes('403')) {
             setShowSubscriptionModal(true);
           } else {
@@ -93,9 +113,23 @@ export default function VideoPlayer({ movieId }: VideoPlayerProps) {
 
     return () => {
       isMounted = false;
+      // NOUVEAU : Sauvegarde finale à la fermeture du composant
+      if (currentTimeRef.current > 0) {
+        saveProgress(currentTimeRef.current);
+      }
       if (hls) hls.destroy();
     };
   }, [movieId, activeProfile]);
+
+  // NOUVEAU : Écouteur pour la sauvegarde régulière (toutes les 15 secondes)
+  const handleTimeUpdate = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    const currentTime = e.currentTarget.currentTime;
+    currentTimeRef.current = currentTime;
+
+    if (currentTime - lastSavedTimeRef.current >= 15) {
+      saveProgress(currentTime);
+    }
+  };
 
   return (
     <>
@@ -117,16 +151,16 @@ export default function VideoPlayer({ movieId }: VideoPlayerProps) {
             controls
             preload="auto"
             playsInline
-            muted={false} // Désactiver le mute par défaut si possible
+            muted={false}
             autoPlay
+            onTimeUpdate={handleTimeUpdate} // NOUVEAU : On relie l'événement
           />
         )}
       </div>
 
-      {/* --- MODAL D'ABONNEMENT --- */}
       <Modal 
         isOpen={showSubscriptionModal} 
-        onClose={() => router.push('/')} // On renvoie à l'accueil si on ferme
+        onClose={() => router.push('/')} 
         title="Abonnement Requis"
       >
         <div className="flex flex-col items-center text-center space-y-4 mb-8">

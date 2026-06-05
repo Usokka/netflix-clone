@@ -6,6 +6,7 @@ import { serverApiClient } from "@/lib/serverApiClient";
 
 interface WatchPageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ t?: string }>; // NOUVEAU : On écoute le query param ?t=120
 }
 
 async function getMovieData(id: string): Promise<Movie> {
@@ -19,8 +20,11 @@ async function getMovieData(id: string): Promise<Movie> {
   }
 }
 
-export default async function WatchPage({ params }: WatchPageProps) {
+export default async function WatchPage({ params, searchParams }: WatchPageProps) {
   const { id } = await params;
+  const { t } = await searchParams; // NOUVEAU
+  const timestamp = t ? parseInt(t, 10) : 0; // NOUVEAU
+
   const movie = await getMovieData(id);
 
   return (
@@ -35,16 +39,15 @@ export default async function WatchPage({ params }: WatchPageProps) {
         </Link>
       </div>
 
-      <div className="absolute top-8 left-1/2 -translate-x-1/2 z-40 text-center pointer-events-none">
-{/*         <h1 className="text-xl md:text-2xl font-bold text-gray-400 opacity-60">
-          Visionnage de : <span className="text-white opacity-100">{movie.title}</span>
-        </h1> */}
-      </div>
-
       <div className="w-full h-full flex items-center justify-center bg-black">
         <div className="w-full max-w-5xl px-4 shadow-2xl shadow-black/80">
-          <VideoPlayer movieId={movie.videoFolderUrl} />
-        </div>
+          {/* NOUVEAU : On passe le timestamp au lecteur */}
+          <VideoPlayer 
+            movieId={movie.id} 
+            videoFolderUrl={movie.videoFolderUrl} 
+            timestamp={timestamp} 
+          />        
+      </div>
       </div>
 
     </main>

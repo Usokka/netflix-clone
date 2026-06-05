@@ -11,6 +11,8 @@ export interface Movie {
   maturityRating?: string;
   language?: string;
   genres?: Genre[];
+  timestamp?: number; 
+  progressPercentage?: number;
 }
 
 export interface Genre {
