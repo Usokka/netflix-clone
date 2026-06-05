@@ -13,4 +13,5 @@ public interface MovieRepository extends JpaRepository<Movie, UUID> {
     
     @Query("SELECT m FROM Movie m JOIN m.genres g WHERE g.id = :genreId")
     List<Movie> findByGenreId(@Param("genreId") Integer genreId);
+    List<Movie> findByTitleContainingIgnoreCaseOrDescriptionContainingIgnoreCase(String title, String description);
 }

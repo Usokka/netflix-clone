@@ -84,4 +84,28 @@ public class MovieService {
                 )
                 .build();
     }
+
+    @Transactional(readOnly = true)
+    public List<MovieCardResponse> searchMovies(String query, Integer genreId) {
+        List<Movie> movies;
+
+        boolean hasQuery = query != null && !query.trim().isEmpty();
+
+        if (hasQuery) {
+            movies = movieRepository.findByTitleContainingIgnoreCaseOrDescriptionContainingIgnoreCase(query, query);
+        } else if (genreId != null) {
+            movies = movieRepository.findByGenreId(genreId);
+        } else {
+            return List.of(); // Ni texte, ni genre : on renvoie vide
+        }
+
+        if (hasQuery && genreId != null) {
+            movies = movies.stream()
+                    .filter(m -> m.getGenres() != null && 
+                                 m.getGenres().stream().anyMatch(g -> g.getId().equals(genreId)))
+                    .collect(Collectors.toList());
+        }
+
+        return movies.stream().map(this::convertToCardResponse).collect(Collectors.toList());
+    }
 }

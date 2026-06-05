@@ -40,4 +40,13 @@ public class MovieController {
     public ResponseEntity<List<MovieCardResponse>> getMoviesByGenre(@PathVariable Integer genreId) {
         return ResponseEntity.ok(movieService.getMoviesByGenre(genreId));
     }
+
+// Remplace ton ancienne route /search par celle-ci :
+    @GetMapping("/search")
+    public ResponseEntity<List<MovieCardResponse>> searchMovies(
+            @RequestParam(value = "q", required = false) String query,
+            @RequestParam(value = "genre", required = false) Integer genreId) {
+        
+        return ResponseEntity.ok(movieService.searchMovies(query, genreId));
+    }
 }
