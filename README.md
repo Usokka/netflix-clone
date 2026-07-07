@@ -412,6 +412,4 @@ docs(readme): add RSA key generation instructions
 | Base de données | PostgreSQL 16 |
 | Cache | Redis 7 |
 | Conteneurisation | Docker & Docker Compose |
-| Provisioning | Terraform (ProxMox/AWS) |
-| Configuration serveur | Ansible |
 | CI/CD | GitHub Actions |
