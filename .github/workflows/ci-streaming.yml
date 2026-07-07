@@ -1,0 +1,23 @@
+name: CI - Streaming Engine
+
+on:
+  push:
+    branches: [dev, main]
+    paths:
+      - 'streaming/**'
+      - '.github/workflows/ci-streaming.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt-get install -y cmake libssl-dev
+      - name: Build
+        run: |
+          cmake -B build -S .
+          cmake --build build
+        working-directory: ./streaming
+      - name: Build Docker image
+        run: docker build -t netflix-streaming ./streaming
