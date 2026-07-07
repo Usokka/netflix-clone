@@ -2,7 +2,7 @@
 
 Clone de plateforme de streaming vidéo — monorepo full-stack avec authentification stateless, streaming HLS haute performance, et infrastructure conteneurisée.
 
-**Stack :** Next.js 14 (TypeScript) · Spring Boot 3 (Java 21) · C++ (epoll/sendfile) · PostgreSQL · Redis · Docker · Terraform · Ansible
+**Stack :** Next.js 14 (TypeScript) · Spring Boot 3 (Java 21) · C++ (epoll/sendfile) · PostgreSQL · Redis · Docker
 
 ---
 
