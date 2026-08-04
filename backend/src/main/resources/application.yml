@@ -7,25 +7,42 @@ spring:
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/netflix_db}
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
-    password: ${SPRING_DATASOURCE_PASSWORD:password}
+    password: ${SPRING_DATASOURCE_PASSWORD}
     driver-class-name: org.postgresql.Driver
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
-      ddl-auto: create-drop
-    show-sql: true
-    defer-datasource-initialization: true
+      ddl-auto: validate
+    show-sql: false
   data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
       port: ${SPRING_DATA_REDIS_PORT:6379}
-      password: ${SPRING_DATA_REDIS_PASSWORD:redis_password}
+      password: ${SPRING_DATA_REDIS_PASSWORD}
+    web:
+      pageable:
+        default-page-size: 20
+        max-page-size: 100
   sql:
     init:
-      mode: always
+      mode: never
 
   jwt:
     private-key-path: ${JWT_PRIVATE_KEY_PATH:/app/secrets/private.pem}
     public-key-path: ${JWT_PUBLIC_KEY_PATH:/app/secrets/public.pem}
-    access-expiration: ${JWT_ACCESS_EXPIRATION}
-    refresh-expiration: ${JWT_REFRESH_EXPIRATION}
+    access-expiration: ${JWT_ACCESS_EXPIRATION:900000}
+    refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}
+
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+  subscription:
+    demo-activation-enabled: ${SUBSCRIPTION_DEMO_ACTIVATION_ENABLED:false}
+  security:
+    trust-forwarded-headers: ${TRUST_FORWARDED_HEADERS:false}
+    cookies:
+      secure: ${COOKIE_SECURE:true}
+
+streaming:
+  ticket:
+    private-key-path: ${STREAMING_PRIVATE_KEY_PATH:/run/secrets/streaming_private_key}

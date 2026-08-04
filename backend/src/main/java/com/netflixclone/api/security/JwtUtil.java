@@ -1,6 +1,7 @@
 package com.netflixclone.api.security;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import jakarta.annotation.PostConstruct;
 import lombok.Getter;
@@ -16,12 +17,16 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.Date;
-import java.util.function.Function;
+import java.util.UUID;
 
 @Component
 public class JwtUtil {
+
+    private static final String TOKEN_TYPE_CLAIM = "token_type";
+    private static final String TOKEN_ISSUER = "netflix-backend";
 
     @Value("${spring.jwt.private-key-path}")
     private String privateKeyPath;
@@ -33,78 +38,89 @@ public class JwtUtil {
     @Value("${spring.jwt.access-expiration}")
     private long jwtExpiration;
 
+    @Getter
+    @Value("${spring.jwt.refresh-expiration}")
+    private long refreshExpiration;
+
     private PrivateKey privateKey;
     private PublicKey publicKey;
+
     @PostConstruct
-    public void initKeys() throws Exception {
-        this.privateKey = loadPrivateKey(privateKeyPath);
-        this.publicKey = loadPublicKey(publicKeyPath);
+    public void initKeys() {
+        try {
+            this.privateKey = loadPrivateKey(privateKeyPath);
+            this.publicKey = loadPublicKey(publicKeyPath);
+        } catch (Exception exception) {
+            throw new IllegalStateException("Impossible de charger les clés RSA JWT", exception);
+        }
     }
 
     public String generateToken(UserDetails userDetails) {
-        try {
-            privateKey = loadPrivateKey(privateKeyPath);
-            return Jwts.builder()
-                    .subject(userDetails.getUsername())
-                    .issuedAt(new Date(System.currentTimeMillis()))
-                    .expiration(new Date(System.currentTimeMillis() + jwtExpiration))
-                    .signWith(privateKey, Jwts.SIG.RS256)
-                    .compact();
-        } catch (Exception e) {
-            throw new RuntimeException("Erreur de génération JWT", e);
-        }
+        return generateToken(userDetails, jwtExpiration, TokenType.ACCESS);
     }
 
     public String generateRefreshToken(UserDetails userDetails) {
-        try {
-            privateKey = loadPrivateKey(privateKeyPath);
-            // Durée de vie de 7 jours (en millisecondes)
-            long refreshExpiration = 7L * 24 * 60 * 60 * 1000; 
-            
-            return Jwts.builder()
-                    .subject(userDetails.getUsername())
-                    .issuedAt(new Date(System.currentTimeMillis()))
-                    .expiration(new Date(System.currentTimeMillis() + refreshExpiration))
-                    .signWith(privateKey, Jwts.SIG.RS256)
-                    .compact();
-        } catch (Exception e) {
-            throw new RuntimeException("Erreur de génération du Refresh JWT", e);
+        return generateToken(userDetails, refreshExpiration, TokenType.REFRESH);
+    }
+
+    public String extractAccessTokenUsername(String token) {
+        return extractUsername(token, TokenType.ACCESS);
+    }
+
+    public String extractRefreshTokenUsername(String token) {
+        return extractUsername(token, TokenType.REFRESH);
+    }
+
+    public RefreshTokenDetails parseRefreshToken(String token) {
+        Claims claims = extractAllClaims(token);
+        validateTokenType(claims, TokenType.REFRESH);
+
+        String tokenId = claims.getId();
+        if (tokenId == null || tokenId.isBlank()) {
+            throw new JwtException("Identifiant de refresh token manquant");
         }
+
+        return new RefreshTokenDetails(
+                claims.getSubject(),
+                tokenId,
+                claims.getExpiration().toInstant()
+        );
     }
 
-    public String extractUsername(String token) {
-        return extractClaim(token, Claims::getSubject);
+    private String generateToken(UserDetails userDetails, long expirationMillis, TokenType tokenType) {
+        long nowMillis = System.currentTimeMillis();
+
+        return Jwts.builder()
+                .subject(userDetails.getUsername())
+                .issuer(TOKEN_ISSUER)
+                .id(UUID.randomUUID().toString())
+                .issuedAt(new Date(nowMillis))
+                .expiration(new Date(nowMillis + expirationMillis))
+                .claim(TOKEN_TYPE_CLAIM, tokenType.claimValue)
+                .signWith(privateKey, Jwts.SIG.RS256)
+                .compact();
     }
 
-    public boolean isTokenValid(String token, UserDetails userDetails) {
-        final String username = extractUsername(token);
-        return (username.equals(userDetails.getUsername())) && !isTokenExpired(token);
+    private String extractUsername(String token, TokenType expectedType) {
+        Claims claims = extractAllClaims(token);
+        validateTokenType(claims, expectedType);
+        return claims.getSubject();
     }
 
-    private boolean isTokenExpired(String token) {
-        return extractExpiration(token).before(new Date());
-    }
-
-    private Date extractExpiration(String token) {
-        return extractClaim(token, Claims::getExpiration);
-    }
-
-    private <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
-        final Claims claims = extractAllClaims(token);
-        return claimsResolver.apply(claims);
+    private void validateTokenType(Claims claims, TokenType expectedType) {
+        String tokenType = claims.get(TOKEN_TYPE_CLAIM, String.class);
+        if (!expectedType.claimValue.equals(tokenType)) {
+            throw new JwtException("Type de jeton invalide");
+        }
     }
 
     private Claims extractAllClaims(String token) {
-        try {
-            publicKey = loadPublicKey(publicKeyPath);
-            return Jwts.parser()
-                    .verifyWith(publicKey)
-                    .build()
-                    .parseSignedClaims(token)
-                    .getPayload();
-        } catch (Exception e) {
-            throw new RuntimeException("Token invalide ou erreur de lecture", e);
-        }
+        return Jwts.parser()
+                .requireIssuer(TOKEN_ISSUER)
+                .verifyWith(publicKey)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
     }
 
     private PrivateKey loadPrivateKey(String path) throws Exception {
@@ -123,21 +139,17 @@ public class JwtUtil {
         return KeyFactory.getInstance("RSA").generatePublic(keySpec);
     }
 
-    public String generateStreamingTicket(String movieId, String clientIp) {
-    try {
-        PrivateKey privateKey = loadPrivateKey(privateKeyPath);
-        long now = System.currentTimeMillis();
-        return Jwts.builder()
-                .subject("streaming-token")
-                .issuer("netflix-backend")
-                .issuedAt(new Date(now))
-                .expiration(new Date(now + 900_000))
-                .claim("movieId", movieId)
-                .claim("ip", clientIp)
-                .signWith(privateKey, Jwts.SIG.RS256)
-                .compact();
-    } catch (Exception e) {
-        throw new RuntimeException("Erreur génération ticket streaming", e);
+    private enum TokenType {
+        ACCESS("access"),
+        REFRESH("refresh");
+
+        private final String claimValue;
+
+        TokenType(String claimValue) {
+            this.claimValue = claimValue;
+        }
     }
-}
+
+    public record RefreshTokenDetails(String email, String tokenId, Instant expiresAt) {
+    }
 }

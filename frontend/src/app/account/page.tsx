@@ -18,8 +18,8 @@ export default function AccountPage() {
       try {
         const data = await apiClient.get<Subscription[]>('/subscriptions');
         setSubscriptions(data);
-      } catch (err: any) {
-        setError(err.message || 'Impossible de charger vos abonnements.');
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Impossible de charger vos abonnements.');
       } finally {
         setLoading(false);
       }
@@ -65,12 +65,12 @@ export default function AccountPage() {
 
         <div className="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden shadow-2xl">
           <div className="p-6 border-b border-zinc-800 bg-zinc-900/50 flex items-center justify-between">
-            <h2 className="text-xl font-semibold">Historique de facturation</h2>
+            <h2 className="text-xl font-semibold">Abonnement</h2>
             <button 
               onClick={() => router.push('/plans')}
               className="bg-zinc-800 hover:bg-zinc-700 text-white text-sm font-medium py-2 px-4 rounded transition"
             >
-              Changer de forfait
+              Voir les forfaits
             </button>
           </div>
 
@@ -84,7 +84,7 @@ export default function AccountPage() {
             </div>
           ) : subscriptions.length === 0 ? (
             <div className="p-12 text-center text-gray-400">
-              Vous n'avez aucun abonnement actif.
+              Vous n&apos;avez aucun abonnement actif.
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -93,7 +93,7 @@ export default function AccountPage() {
                   <tr>
                     <th className="px-6 py-4 font-medium">Forfait</th>
                     <th className="px-6 py-4 font-medium">Début</th>
-                    <th className="px-6 py-4 font-medium">Prochain prélèvement</th>
+                    <th className="px-6 py-4 font-medium">Expiration</th>
                     <th className="px-6 py-4 font-medium text-right">Statut</th>
                   </tr>
                 </thead>

@@ -1,5 +1,6 @@
 'use client';
-import React, { createContext, useContext, useState, useEffect } from 'react';
+
+import React, { createContext, useCallback, useContext, useMemo, useSyncExternalStore } from 'react';
 import { Profile } from '@/types';
 
 interface ProfileContextType {
@@ -7,45 +8,67 @@ interface ProfileContextType {
   setActiveProfile: (profile: Profile | null) => void;
 }
 
+const STORAGE_KEY = 'activeProfile';
+const PROFILE_CHANGE_EVENT = 'active-profile-change';
 const ProfileContext = createContext<ProfileContextType | undefined>(undefined);
 
+function subscribeToProfile(callback: () => void) {
+  window.addEventListener('storage', callback);
+  window.addEventListener(PROFILE_CHANGE_EVENT, callback);
+
+  return () => {
+    window.removeEventListener('storage', callback);
+    window.removeEventListener(PROFILE_CHANGE_EVENT, callback);
+  };
+}
+
+function getProfileSnapshot() {
+  return localStorage.getItem(STORAGE_KEY);
+}
+
+function getServerProfileSnapshot() {
+  return null;
+}
+
+function parseProfile(serializedProfile: string | null): Profile | null {
+  if (!serializedProfile) return null;
+
+  try {
+    const profile = JSON.parse(serializedProfile) as Partial<Profile>;
+    if (typeof profile.id !== 'string' || typeof profile.name !== 'string') return null;
+    return profile as Profile;
+  } catch {
+    return null;
+  }
+}
+
 export function ProfileProvider({ children }: { children: React.ReactNode }) {
-  const [activeProfile, setActiveProfile] = useState<Profile | null>(null);
+  const serializedProfile = useSyncExternalStore(
+    subscribeToProfile,
+    getProfileSnapshot,
+    getServerProfileSnapshot,
+  );
+  const activeProfile = useMemo(() => parseProfile(serializedProfile), [serializedProfile]);
 
-  // 1. Récupération du profil au chargement de l'application
-  useEffect(() => {
-    const storedProfile = localStorage.getItem('activeProfile');
-    if (storedProfile) {
-      try {
-        setActiveProfile(JSON.parse(storedProfile));
-      } catch (e) {
-        console.error("Erreur de parsing du profil local", e);
-      }
-    }
-  }, []);
-
-  // 2. Fonction pour mettre à jour l'état, le localStorage et le cookie simultanément
-  const handleSetProfile = (profile: Profile | null) => {
-    setActiveProfile(profile);
-    
+  const setActiveProfile = useCallback((profile: Profile | null) => {
     if (profile) {
-      localStorage.setItem('activeProfile', JSON.stringify(profile));
-      // On sauvegarde l'ID dans un cookie (SameSite=Lax) pour l'envoyer au backend si besoin
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
       document.cookie = `profileId=${profile.id}; path=/; max-age=31536000; SameSite=Lax`;
     } else {
-      localStorage.removeItem('activeProfile');
+      localStorage.removeItem(STORAGE_KEY);
       document.cookie = 'profileId=; path=/; max-age=0; SameSite=Lax';
     }
-  };
+
+    window.dispatchEvent(new Event(PROFILE_CHANGE_EVENT));
+  }, []);
 
   return (
-    <ProfileContext.Provider value={{ activeProfile, setActiveProfile: handleSetProfile }}>
+    <ProfileContext.Provider value={{ activeProfile, setActiveProfile }}>
       {children}
     </ProfileContext.Provider>
   );
 }
 
-// Hook personnalisé pour consommer le contexte facilement
 export function useProfile() {
   const context = useContext(ProfileContext);
   if (context === undefined) {

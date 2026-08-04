@@ -6,6 +6,7 @@ import { apiClient } from '@/lib/apiClient';
 import { AuthResponse } from '@/types';
 import Modal from '@/components/ui/modal';
 import { CheckCircle } from 'lucide-react';
+import Link from 'next/link';
 
 interface AuthFormProps {
   mode: 'login' | 'register';
@@ -18,7 +19,6 @@ export default function AuthForm({ mode }: AuthFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   
-  // État pour gérer l'affichage de notre Modal de succès
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const isLogin = mode === 'login';
@@ -36,7 +36,6 @@ export default function AuthForm({ mode }: AuthFormProps) {
       if (isLogin) {
         router.push('/profiles');
       } else {
-        // Au lieu de l'alert() bloquant, on déclenche l'apparition de la Modal
         setShowSuccessModal(true);
         setLoading(false);
       }
@@ -55,8 +54,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
     <div
       className="relative min-h-screen w-full bg-cover bg-center flex items-center justify-center text-white"
       style={{
-        backgroundImage:
-          "linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url('https://assets.nflxext.com/ffe/siteui/vlv3/c1a7b547-581e-4521-869a-0341d01460d1/web/FR-fr-20230605-popsignuptwoweeks-perspective_alpha_website_large.jpg')",
+        backgroundImage: 'radial-gradient(circle at top, #3f3f46 0%, #18181b 40%, #09090b 100%)',
       }}
     >
       {/* Logo */}
@@ -73,26 +71,35 @@ export default function AuthForm({ mode }: AuthFormProps) {
         </h2>
 
         {error && (
-          <div className="bg-[#e87c03] text-sm rounded px-4 py-3 mb-4 font-medium">
+          <div role="alert" className="bg-[#e87c03] text-sm rounded px-4 py-3 mb-4 font-medium">
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4 flex-1">
+          <label htmlFor={`${mode}-email`} className="sr-only">Adresse e-mail</label>
           <input
+            id={`${mode}-email`}
             type="email"
             placeholder="Adresse e-mail"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
+            maxLength={254}
             required
             className="w-full h-12 px-5 bg-[#333] border-0 rounded text-white placeholder-gray-400 focus:bg-[#454545] focus:outline-none transition-colors"
           />
 
+          <label htmlFor={`${mode}-password`} className="sr-only">Mot de passe</label>
           <input
+            id={`${mode}-password`}
             type="password"
             placeholder="Mot de passe"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            autoComplete={isLogin ? 'current-password' : 'new-password'}
+            minLength={isLogin ? undefined : 12}
+            maxLength={72}
             required
             className="w-full h-12 px-5 bg-[#333] border-0 rounded text-white placeholder-gray-400 focus:bg-[#454545] focus:outline-none transition-colors"
           />
@@ -110,22 +117,21 @@ export default function AuthForm({ mode }: AuthFormProps) {
           {isLogin ? (
             <>
               Nouveau sur Netflix ?{' '}
-              <a href="/register" className="text-white hover:underline font-medium">
+              <Link href="/register" className="text-white hover:underline font-medium">
                 Inscrivez-vous maintenant.
-              </a>
+              </Link>
             </>
           ) : (
             <>
               Déjà membre ?{' '}
-              <a href="/login" className="text-white hover:underline font-medium">
+              <Link href="/login" className="text-white hover:underline font-medium">
                 Connectez-vous.
-              </a>
+              </Link>
             </>
           )}
         </div>
       </div>
 
-      {/* --- MODAL DE SUCCES D'INSCRIPTION --- */}
       <Modal
         isOpen={showSuccessModal}
         onClose={handleCloseSuccessModal}

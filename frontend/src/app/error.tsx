@@ -19,7 +19,7 @@ export default function Error({
   }, [error]);
 
   return (
-    <div className="min-h-screen w-full bg-[#141414] flex items-center justify-center bg-[url('https://assets.nflxext.com/ffe/siteui/vlv3/c1a7b547-581e-4521-869a-0341d01460d1/web/FR-fr-20230605-popsignuptwoweeks-perspective_alpha_website_large.jpg')] bg-cover bg-center bg-blend-overlay">
+    <div className="min-h-screen w-full bg-gradient-to-b from-zinc-800 via-[#141414] to-black flex items-center justify-center">
       <Modal 
         isOpen={true} 
         onClose={() => router.push('/')} 
@@ -30,9 +30,7 @@ export default function Error({
           <p className="text-gray-300 font-medium">
             Une erreur est survenue lors du chargement du catalogue.
           </p>
-          <p className="text-sm text-zinc-500 bg-zinc-800/50 p-3 rounded w-full border border-zinc-700/50 break-words">
-            {error.message || 'Veuillez vérifier votre connexion ou réessayer plus tard.'}
-          </p>
+          <p className="text-sm text-zinc-500">Veuillez vérifier votre connexion ou réessayer plus tard.</p>
         </div>
 
         <button

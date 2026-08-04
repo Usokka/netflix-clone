@@ -1,116 +1,161 @@
 #include "httpServer.hpp"
-#include <cstring>
-#include <fcntl.h>
+#include "utils.hpp"
+
+#include <algorithm>
+#include <cerrno>
+#include <condition_variable>
+#include <cstdio>
+#include <csignal>
+#include <cstdlib>
 #include <iostream>
+#include <mutex>
 #include <netinet/in.h>
-#include <sys/epoll.h>
+#include <queue>
 #include <sys/socket.h>
+#include <thread>
 #include <unistd.h>
 #include <vector>
-const int PORT = 8081;
-const int MAX_EVENTS = 64;
 
-bool make_socket_non_blocking(int sfd) {
-  int flags = fcntl(sfd, F_GETFL, 0);
-  if (flags == -1) {
-    perror("fcntl F_GETFL");
-    return false;
-  }
-  flags |= O_NONBLOCK;
-  if (fcntl(sfd, F_SETFL, flags) == -1) {
-    perror("fcntl F_SETFL");
-    return false;
-  }
-  return true;
+namespace {
+constexpr int PORT = 8081;
+constexpr std::size_t MAX_PENDING_CONNECTIONS = 1024;
+
+class ConnectionPool {
+public:
+    explicit ConnectionPool(unsigned int worker_count) {
+        workers_.reserve(worker_count);
+        for (unsigned int index = 0; index < worker_count; ++index) {
+            workers_.emplace_back([this] { run_worker(); });
+        }
+    }
+
+    ~ConnectionPool() {
+        {
+            std::lock_guard lock(mutex_);
+            stopping_ = true;
+        }
+        condition_.notify_all();
+        for (std::thread& worker : workers_) {
+            worker.join();
+        }
+    }
+
+    bool submit(int client_fd) {
+        {
+            std::lock_guard lock(mutex_);
+            if (stopping_ || connections_.size() >= MAX_PENDING_CONNECTIONS) {
+                return false;
+            }
+            connections_.push(client_fd);
+        }
+        condition_.notify_one();
+        return true;
+    }
+
+private:
+    void run_worker() {
+        while (true) {
+            int client_fd = -1;
+            {
+                std::unique_lock lock(mutex_);
+                condition_.wait(lock, [this] {
+                    return stopping_ || !connections_.empty();
+                });
+                if (stopping_ && connections_.empty()) return;
+                client_fd = connections_.front();
+                connections_.pop();
+            }
+
+            handle_client_request(client_fd);
+        }
+    }
+
+    std::vector<std::thread> workers_;
+    std::queue<int> connections_;
+    std::mutex mutex_;
+    std::condition_variable condition_;
+    bool stopping_ = false;
+};
+
+void reject_overloaded_connection(int client_fd) {
+    constexpr char response[] =
+        "HTTP/1.1 503 Service Unavailable\r\n"
+        "Content-Length: 0\r\n"
+        "Connection: close\r\n\r\n";
+    send(client_fd, response, sizeof(response) - 1, MSG_NOSIGNAL);
+    close(client_fd);
+}
 }
 
 int main() {
-  std::cout << "[Streaming Engine] Initialisation du serveur sur le port "
-            << PORT << "..." << std::endl;
+    std::signal(SIGPIPE, SIG_IGN);
 
-  int server_fd = socket(AF_INET, SOCK_STREAM, 0);
-  if (server_fd == -1) {
-    perror("Erreur création socket");
-    return 1;
-  }
-
-  int opt = 1;
-  setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-
-  sockaddr_in address{};
-  address.sin_family = AF_INET;
-  address.sin_addr.s_addr = INADDR_ANY;
-  address.sin_port = htons(PORT);
-
-  if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
-    perror("Erreur bind");
-    close(server_fd);
-    return 1;
-  }
-
-  if (listen(server_fd, SOMAXCONN) < 0) {
-    perror("Erreur listen");
-    close(server_fd);
-    return 1;
-  }
-
-  if (!make_socket_non_blocking(server_fd)) {
-    close(server_fd);
-    return 1;
-  }
-
-  int epoll_fd = epoll_create1(0);
-  if (epoll_fd == -1) {
-    perror("Erreur epoll_create1");
-    close(server_fd);
-    return 1;
-  }
-
-  epoll_event ev{};
-  ev.events = EPOLLIN | EPOLLET;
-  ev.data.fd = server_fd;
-
-  if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_fd, &ev) == -1) {
-    perror("Erreur epoll_ctl ADD");
-    close(server_fd);
-    close(epoll_fd);
-    return 1;
-  }
-
-  std::cout << "[Streaming Engine] Serveur d'écoute prêt. En attente de "
-               "connexions (Boucle epoll)..."
-            << std::endl;
-
-  std::vector<epoll_event> events(MAX_EVENTS);
-
-  while (true) {
-    int num_events = epoll_wait(epoll_fd, events.data(), MAX_EVENTS, -1);
-    if (num_events == -1) {
-      if (errno == EINTR)
-        continue;
-      perror("Erreur epoll_wait");
-      break;
+    const char* configured_key_path = std::getenv("STREAMING_PUBLIC_KEY_PATH");
+    const std::string key_path = configured_key_path != nullptr
+        ? configured_key_path
+        : "/run/secrets/jwt_public_key";
+    if (!initialize_ticket_verifier(key_path)) {
+        return 1;
     }
 
-    for (int i = 0; i < num_events; ++i) {
-      if ((events[i].events & EPOLLERR) || (events[i].events & EPOLLHUP) ||
-          (!(events[i].events & EPOLLIN))) {
-        std::cerr << "[System] Erreur ou fermeture sur le socket FD: "
-                  << events[i].data.fd << std::endl;
-        close(events[i].data.fd);
-        continue;
-      }
-
-      if (events[i].data.fd == server_fd) {
-        handle_new_connection(server_fd, epoll_fd);
-      } else {
-        handle_client_request(events[i].data.fd, epoll_fd);
-      }
+    const char* configured_video_root = std::getenv("VIDEO_ROOT");
+    const std::string video_root = configured_video_root != nullptr
+        ? configured_video_root
+        : "/app/videos";
+    if (!initialize_video_root(video_root)) {
+        std::cerr << "[Streaming Engine] Invalid video root: " << video_root << std::endl;
+        return 1;
     }
-  }
 
-  close(server_fd);
-  close(epoll_fd);
-  return 0;
-  return 0;
+    int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd == -1) {
+        std::perror("socket");
+        return 1;
+    }
+
+    int reuse_address = 1;
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &reuse_address, sizeof(reuse_address)) == -1) {
+        std::perror("setsockopt");
+        close(server_fd);
+        return 1;
+    }
+
+    sockaddr_in address{};
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = INADDR_ANY;
+    address.sin_port = htons(PORT);
+
+    if (bind(server_fd, reinterpret_cast<sockaddr*>(&address), sizeof(address)) == -1) {
+        std::perror("bind");
+        close(server_fd);
+        return 1;
+    }
+
+    if (listen(server_fd, SOMAXCONN) == -1) {
+        std::perror("listen");
+        close(server_fd);
+        return 1;
+    }
+
+    const unsigned int hardware_threads = std::thread::hardware_concurrency();
+    const unsigned int worker_count = std::clamp(hardware_threads == 0 ? 4U : hardware_threads, 4U, 32U);
+    ConnectionPool pool(worker_count);
+    std::cout << "[Streaming Engine] Listening on port " << PORT
+              << " with " << worker_count << " workers" << std::endl;
+
+    while (true) {
+        int client_fd = accept(server_fd, nullptr, nullptr);
+        if (client_fd == -1) {
+            if (errno == EINTR) continue;
+            std::perror("accept");
+            break;
+        }
+
+        if (!pool.submit(client_fd)) {
+            reject_overloaded_connection(client_fd);
+        }
+    }
+
+    close(server_fd);
+    return 1;
 }

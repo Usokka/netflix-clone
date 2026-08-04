@@ -6,6 +6,11 @@ on:
     paths:
       - 'backend/**'
       - '.github/workflows/ci-backend.yml'
+  pull_request:
+    branches: [dev, main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/ci-backend.yml'
 
 jobs:
   test-and-build:
@@ -13,7 +18,7 @@ jobs:
     
     services:
       postgres:
-        image: postgres:15-alpine
+        image: postgres:16-alpine
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: password
@@ -25,6 +30,15 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
 
     steps:
       - uses: actions/checkout@v4
@@ -34,10 +48,28 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
-          
-      - name: Run tests
-        run: mvn test
+
+      - name: Generate test RSA keys
+        run: |
+          mkdir -p target/test-secrets
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out target/test-secrets/auth-private.pem
+          openssl rsa -pubout -in target/test-secrets/auth-private.pem -out target/test-secrets/auth-public.pem
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out target/test-secrets/streaming-private.pem
         working-directory: ./backend
+
+      - name: Run tests
+        run: ./mvnw test
+        working-directory: ./backend
+        env:
+          JWT_PRIVATE_KEY_PATH: ${{ github.workspace }}/backend/target/test-secrets/auth-private.pem
+          JWT_PUBLIC_KEY_PATH: ${{ github.workspace }}/backend/target/test-secrets/auth-public.pem
+          STREAMING_PRIVATE_KEY_PATH: ${{ github.workspace }}/backend/target/test-secrets/streaming-private.pem
+          JWT_ACCESS_EXPIRATION: '900000'
+          JWT_REFRESH_EXPIRATION: '604800000'
+          SPRING_DATASOURCE_PASSWORD: password
+          SPRING_DATA_REDIS_HOST: localhost
+          SPRING_DATA_REDIS_PORT: '6379'
+          SPRING_DATA_REDIS_PASSWORD: ''
         
       - name: Build Docker image
         run: docker build -t netflix-api ./backend

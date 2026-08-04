@@ -4,6 +4,8 @@ import com.netflixclone.api.dtos.MovieCardResponse;
 import com.netflixclone.api.services.WatchlistService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -19,23 +21,26 @@ public class WatchlistController {
 
     @GetMapping
     public ResponseEntity<List<MovieCardResponse>> getWatchlist(
+            @AuthenticationPrincipal UserDetails userDetails,
             @RequestHeader("X-Profile-Id") UUID profileId) {
-        return ResponseEntity.ok(watchlistService.getWatchlist(profileId));
+        return ResponseEntity.ok(watchlistService.getWatchlist(userDetails.getUsername(), profileId));
     }
 
     @PostMapping("/{movieId}")
     public ResponseEntity<Map<String, String>> addToWatchlist(
+            @AuthenticationPrincipal UserDetails userDetails,
             @RequestHeader("X-Profile-Id") UUID profileId,
             @PathVariable String movieId) {
-        watchlistService.addToWatchlist(profileId, movieId);
+        watchlistService.addToWatchlist(userDetails.getUsername(), profileId, movieId);
         return ResponseEntity.ok(Map.of("message", "Film ajouté à la liste avec succès"));
     }
 
     @DeleteMapping("/{movieId}")
     public ResponseEntity<Map<String, String>> removeFromWatchlist(
+            @AuthenticationPrincipal UserDetails userDetails,
             @RequestHeader("X-Profile-Id") UUID profileId,
             @PathVariable String movieId) {
-        watchlistService.removeFromWatchlist(profileId, movieId);
+        watchlistService.removeFromWatchlist(userDetails.getUsername(), profileId, movieId);
         return ResponseEntity.ok(Map.of("message", "Film retiré de la liste"));
     }
 }

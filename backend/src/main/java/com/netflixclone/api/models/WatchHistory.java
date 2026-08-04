@@ -33,6 +33,9 @@ public class WatchHistory {
     @Setter
     private LocalDateTime watchedAt;
 
+    @Version
+    private long version;
+
     @PrePersist
     @PreUpdate
     protected void onUpdate() {

@@ -22,10 +22,13 @@ async function getMovieData(id: string): Promise<Movie> {
 
 export default async function WatchPage({ params, searchParams }: WatchPageProps) {
   const { id } = await params;
-  const { t } = await searchParams; // NOUVEAU
-  const timestamp = t ? parseInt(t, 10) : 0; // NOUVEAU
+  const { t } = await searchParams;
+  const parsedTimestamp = t ? Number.parseInt(t, 10) : 0;
 
   const movie = await getMovieData(id);
+  const timestamp = Number.isFinite(parsedTimestamp) && parsedTimestamp > 0
+    ? Math.min(parsedTimestamp, movie.durationSeconds)
+    : 0;
 
   return (
     <main className="h-screen w-screen bg-black relative flex items-center justify-center">

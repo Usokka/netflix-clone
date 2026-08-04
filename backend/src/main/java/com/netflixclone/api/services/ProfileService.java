@@ -34,7 +34,13 @@ public class ProfileService {
 
     @Transactional
     public ProfileResponse createProfile(String email, String name, String avatarUrl) {
-        User user = getUserByEmail(email);
+        if (name == null || name.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Le nom du profil est obligatoire");
+        }
+
+        User user = userRepository.findByEmailForUpdate(email)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "Utilisateur introuvable"));
 
         if (profileRepository.countByUserId(user.getId()) >= MAX_PROFILES_PER_USER) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
@@ -43,7 +49,7 @@ public class ProfileService {
 
         Profile profile = Profile.builder()
                 .user(user)
-                .name(name)
+                .name(name.trim())
                 .avatarUrl(avatarUrl)
                 .build();
 
@@ -54,7 +60,7 @@ public class ProfileService {
     public ProfileResponse updateProfile(String email, UUID profileId, String name, String avatarUrl) {
         Profile profile = getProfileOwnedByUser(email, profileId);
 
-        if (name != null && !name.isBlank()) profile.setName(name);
+        if (name != null && !name.isBlank()) profile.setName(name.trim());
         if (avatarUrl != null && !avatarUrl.isBlank()) profile.setAvatarUrl(avatarUrl);
 
         return toResponse(profileRepository.save(profile));
@@ -69,12 +75,13 @@ public class ProfileService {
     // --- Helpers ---
 
     private User getUserByEmail(String email) {
-        return userRepository.findByEmail(email)
+        return userRepository.findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "Utilisateur introuvable"));
     }
 
-    private Profile getProfileOwnedByUser(String email, UUID profileId) {
+    @Transactional(readOnly = true)
+    public Profile getProfileOwnedByUser(String email, UUID profileId) {
         User user = getUserByEmail(email);
         Profile profile = profileRepository.findById(profileId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,

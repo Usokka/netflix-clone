@@ -1,6 +1,6 @@
 #pragma once
-#include <sys/epoll.h>
 
+#include <string>
 
-void handle_new_connection(int server_fd, int epoll_fd);
-void handle_client_request(int client_fd,[[maybe_unused]] int epoll_fd);
+bool initialize_video_root(const std::string& video_root_path);
+void handle_client_request(int client_fd);

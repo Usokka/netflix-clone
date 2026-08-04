@@ -10,7 +10,7 @@ export interface Movie {
   releaseYear?: number;
   maturityRating?: string;
   language?: string;
-  genres?: Genre[];
+  genres?: string[];
   timestamp?: number; 
   progressPercentage?: number;
 }

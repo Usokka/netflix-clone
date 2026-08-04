@@ -1,9 +1,10 @@
 import Navbar from "@/components/Navbar";
 import MovieCard from "@/components/MovieCard";
 import { Movie, Genre } from "@/types";
-import { serverApiClient } from "@/lib/serverApiClient";
+import { ServerApiError, serverApiClient } from "@/lib/serverApiClient";
 import { SearchX } from "lucide-react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 interface SearchPageProps {
   searchParams: Promise<{ q?: string; genre?: string }>;
@@ -12,37 +13,38 @@ interface SearchPageProps {
 export default async function SearchPage({ searchParams }: SearchPageProps) {
   const { q, genre } = await searchParams;
   const query = q || "";
-  const currentGenreId = genre ? parseInt(genre, 10) : null;
+  const parsedGenreId = genre ? Number.parseInt(genre, 10) : Number.NaN;
+  const currentGenreId = Number.isInteger(parsedGenreId) && parsedGenreId > 0 ? parsedGenreId : null;
   
   let movies: Movie[] = [];
   let allGenres: Genre[] = [];
   
-  // On crée l'URL pour l'API backend
-  let apiUrl = `/movies/search?`;
-  if (query) apiUrl += `q=${encodeURIComponent(query)}&`;
-  if (currentGenreId) apiUrl += `genre=${currentGenreId}`;
+  const apiParameters = new URLSearchParams();
+  if (query) apiParameters.set('q', query);
+  if (currentGenreId) apiParameters.set('genre', currentGenreId.toString());
+  const apiUrl = `/movies/search?${apiParameters.toString()}`;
 
   try {
     // Exécution en parallèle : on récupère les films ET tous les genres dispos
-    const [moviesRes, genresRes] = await Promise.allSettled([
+    const [moviesRes, genresRes] = await Promise.all([
       (query || currentGenreId) ? serverApiClient.get<Movie[]>(apiUrl) : Promise.resolve([]),
       serverApiClient.get<Genre[]>("/genres")
     ]);
 
-    movies = moviesRes.status === 'fulfilled' ? moviesRes.value : [];
-    allGenres = genresRes.status === 'fulfilled' ? genresRes.value : [];
+    movies = moviesRes;
+    allGenres = genresRes;
   } catch (error) {
-    console.error("Erreur lors de la recherche :", error);
+    if (error instanceof ServerApiError && error.status === 401) redirect('/login');
+    if (error instanceof ServerApiError && error.status === 403) redirect('/profiles');
+    throw error;
   }
 
-  // Fonction pour construire l'URL quand on clique sur un filtre de genre
   const buildGenreLink = (genreId: number) => {
-    // Si on clique sur le genre déjà actif, on l'enlève (toggle)
-    if (currentGenreId === genreId) {
-      return `/search${query ? `?q=${query}` : ''}`;
-    }
-    // Sinon on l'ajoute
-    return `/search?genre=${genreId}${query ? `&q=${query}` : ''}`;
+    const parameters = new URLSearchParams();
+    if (query) parameters.set('q', query);
+    if (currentGenreId !== genreId) parameters.set('genre', genreId.toString());
+    const search = parameters.toString();
+    return search ? `/search?${search}` : '/search';
   };
 
   return (
@@ -55,7 +57,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         <div className="mb-8">
           {query ? (
             <h1 className="text-xl md:text-2xl text-gray-400 font-medium mb-4">
-              Résultats pour <span className="text-white font-bold">"{query}"</span>
+              Résultats pour <span className="text-white font-bold">&ldquo;{query}&rdquo;</span>
             </h1>
           ) : (
             <h1 className="text-xl md:text-2xl text-white font-bold mb-4">
@@ -68,14 +70,16 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
             {allGenres.map((g) => {
               const isActive = currentGenreId === g.id;
               return (
-                <Link key={g.id} href={buildGenreLink(g.id)}>
-                  <div className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-300 border cursor-pointer ${
+                <Link
+                  key={g.id}
+                  href={buildGenreLink(g.id)}
+                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-300 border ${
                     isActive 
                       ? "bg-white text-black border-white" 
                       : "bg-zinc-900/80 text-gray-300 border-zinc-700 hover:border-white hover:text-white"
-                  }`}>
-                    {g.name}
-                  </div>
+                  }`}
+                >
+                  {g.name}
                 </Link>
               );
             })}
@@ -98,7 +102,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
               Aucun titre trouvé.
             </h2>
             <p className="text-sm text-zinc-500 max-w-md">
-              Essayez d'utiliser des mots-clés différents ou d'élargir votre recherche en retirant des filtres.
+              Essayez d&apos;utiliser des mots-clés différents ou d&apos;élargir votre recherche en retirant des filtres.
             </p>
           </div>
         ) : null}

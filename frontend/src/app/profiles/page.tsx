@@ -6,7 +6,8 @@ import { PlusCircle, Pencil, AlertTriangle } from 'lucide-react';
 import { Profile } from '@/types';
 import { useProfile } from '@/context/ProfileContext';
 import { apiClient } from "@/lib/apiClient";
-import Modal from '@/components/ui/modal'; // Assure-toi que le chemin est correct
+import Modal from '@/components/ui/modal';
+import Image from 'next/image';
 
 // Définition de l'état de notre Modal pour couvrir tous les cas
 type ModalState = {
@@ -31,15 +32,15 @@ export default function ProfilesPage() {
   });
   
   const router = useRouter();
-  const { setActiveProfile } = useProfile();
+  const { activeProfile, setActiveProfile } = useProfile();
 
   useEffect(() => {
     const fetchProfiles = async () => {
       try {
         const data = await apiClient.get<Profile[]>('/profiles');
         setProfiles(data);
-      } catch (err: any) {
-        setError(err.message || 'Impossible de charger les profils.');
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Impossible de charger les profils.');
       } finally {
         setLoading(false);
       }
@@ -75,7 +76,8 @@ export default function ProfilesPage() {
   const handleModalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const { mode, targetProfile, inputValue } = modal;
-    
+    setError(null);
+
     try {
       if (mode === 'create') {
         if (!inputValue.trim()) return;
@@ -92,7 +94,7 @@ export default function ProfilesPage() {
           return;
         }
         // Note: vérifie si ton API attend un PUT ou un POST ici
-        const updatedProfile = await apiClient.post<Profile>(`/profiles/${targetProfile.id}`, {
+        const updatedProfile = await apiClient.put<Profile>(`/profiles/${targetProfile.id}`, {
           name: inputValue.trim(),
           avatarUrl: targetProfile.avatarUrl
         }); 
@@ -102,11 +104,13 @@ export default function ProfilesPage() {
       else if (mode === 'delete' && targetProfile) {
         await apiClient.delete(`/profiles/${targetProfile.id}`);
         setProfiles(profiles.filter(p => p.id !== targetProfile.id));
+        if (activeProfile?.id === targetProfile.id) setActiveProfile(null);
       }
 
       closeModal();
-    } catch (err: any) {
-      setError(`Erreur lors de l'opération : ${err.message}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Erreur inconnue';
+      setError(`Erreur lors de l'opération : ${message}`);
     }
   };
 
@@ -133,7 +137,7 @@ export default function ProfilesPage() {
       </h1>
 
       {error && (
-        <div className="bg-red-500/10 border border-red-500 text-red-500 px-4 py-2 rounded mb-8 z-10">
+        <div role="alert" className="bg-red-500/10 border border-red-500 text-red-500 px-4 py-2 rounded mb-8 z-10">
           {error}
         </div>
       )}
@@ -141,41 +145,46 @@ export default function ProfilesPage() {
       {/* Grille des profils (Inchangée) */}
       <div className="flex flex-wrap justify-center gap-4 md:gap-8 max-w-4xl px-4 z-10">
         {profiles.map((profile) => (
-          <div
+          <button
+            type="button"
             key={profile.id}
             onClick={() => handleProfileClick(profile)}
             className="group flex flex-col items-center cursor-pointer max-w-[120px] relative"
           >
-            <div className={`w-24 h-24 md:w-32 md:h-32 rounded overflow-hidden border-2 transition-all duration-300 ${isEditing ? 'border-neutral-500 opacity-50 hover:opacity-100 hover:border-white' : 'border-transparent hover:border-white'}`}>
-              <img
+            <span className={`relative block w-24 h-24 md:w-32 md:h-32 rounded overflow-hidden border-2 transition-all duration-300 ${isEditing ? 'border-neutral-500 opacity-50 group-hover:opacity-100 group-hover:border-white' : 'border-transparent group-hover:border-white'}`}>
+              <Image
                 src={profile.avatarUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${profile.name}`}
                 alt={profile.name}
-                className="w-full h-full object-cover bg-zinc-800"
+                fill
+                unoptimized
+                sizes="(max-width: 768px) 96px, 128px"
+                className="object-cover bg-zinc-800"
               />
               {isEditing && (
-                <div className="absolute inset-0 flex items-center justify-center">
+                <span className="absolute inset-0 flex items-center justify-center">
                   <Pencil className="w-8 h-8 text-white drop-shadow-lg" />
-                </div>
+                </span>
               )}
-            </div>
+            </span>
             <span className="mt-4 text-gray-400 group-hover:text-white transition-colors duration-300 truncate w-full text-center">
               {profile.name}
             </span>
-          </div>
+          </button>
         ))}
 
         {profiles.length < 4 && (
-          <div
-            onClick={() => openModal('create')} // On ouvre la modal au lieu du prompt
+          <button
+            type="button"
+            onClick={() => openModal('create')}
             className="group flex flex-col items-center cursor-pointer max-w-[120px]"
           >
-            <div className="w-24 h-24 md:w-32 md:h-32 rounded border-2 border-transparent group-hover:bg-zinc-800 transition-all duration-300 flex items-center justify-center">
+            <span className="w-24 h-24 md:w-32 md:h-32 rounded border-2 border-transparent group-hover:bg-zinc-800 transition-all duration-300 flex items-center justify-center">
               <PlusCircle className="w-12 h-12 text-gray-400 group-hover:text-white transition-colors" />
-            </div>
+            </span>
             <span className="mt-4 text-gray-400 group-hover:text-white transition-colors duration-300">
               Ajouter
             </span>
-          </div>
+          </button>
         )}
       </div>
 
@@ -204,6 +213,8 @@ export default function ProfilesPage() {
                 value={modal.inputValue}
                 onChange={(e) => setModal({ ...modal, inputValue: e.target.value })}
                 placeholder="Nom du profil"
+                maxLength={50}
+                required
                 className="w-full bg-zinc-800 border border-zinc-600 rounded px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-white focus:ring-1 focus:ring-white transition"
                 autoFocus
               />
