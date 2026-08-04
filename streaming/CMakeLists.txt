@@ -11,22 +11,15 @@ find_package(OpenSSL REQUIRED)
 find_package(Threads REQUIRED)
 
 include(FetchContent)
-FetchContent_Declare(
-    nlohmann_json
-    GIT_REPOSITORY https://github.com/nlohmann/json.git
-    GIT_TAG v3.12.0
-    GIT_SHALLOW TRUE
-)
-FetchContent_MakeAvailable(nlohmann_json)
 
+set(JWT_BUILD_EXAMPLES OFF CACHE BOOL "Disable jwt-cpp examples" FORCE)
+set(JWT_BUILD_TESTS OFF CACHE BOOL "Disable jwt-cpp tests" FORCE)
 FetchContent_Declare(
     jwt-cpp
     GIT_REPOSITORY https://github.com/thalhammer/jwt-cpp.git
     GIT_TAG v0.7.2
     GIT_SHALLOW TRUE
 )
-# Dire à jwt-cpp de ne pas fetch nlohmann lui-même
-set(JWT_EXTERNAL_NLOHMANN_JSON ON)
 FetchContent_MakeAvailable(jwt-cpp)
 
 add_executable(streaming_engine
