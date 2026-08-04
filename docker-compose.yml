@@ -6,9 +6,9 @@ services:
     environment:
       POSTGRES_DB: netflix_db
       POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
-    ports:
-      - "5432:5432"
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    expose:
+      - "5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -23,11 +23,18 @@ services:
   redis-cache:
     image: redis:7-alpine
     container_name: netflix-cache
-    command: redis-server --requirepass ${REDIS_PASSWORD:-redis_password}
-    ports:
-      - "6379:6379"
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
+    command: ["sh", "-c", "redis-server --requirepass \"$${REDIS_PASSWORD}\""]
+    expose:
+      - "6379"
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep -q PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     networks:
       - db-network
 
@@ -37,29 +44,44 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    ports:
-      - "8080:8080"
+    expose:
+      - "8080"
     environment:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-db:5432/netflix_db
       - SPRING_DATASOURCE_USERNAME=${DB_USER:-postgres}
-      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD:-password}
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD:?Set DB_PASSWORD in .env}
       - SPRING_DATA_REDIS_HOST=redis-cache
       - SPRING_DATA_REDIS_PORT=6379
-      - SPRING_DATA_REDIS_PASSWORD=${REDIS_PASSWORD:-redis_password}
-      - JWT_ACCESS_EXPIRATION= ${JWT_ACCESS_EXPIRATION}
-      - JWT_REFRESH_EXPIRATION= ${JWT_REFRESH_EXPIRATION}
+      - SPRING_DATA_REDIS_PASSWORD=${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-demo}
+      - SUBSCRIPTION_DEMO_ACTIVATION_ENABLED=${SUBSCRIPTION_DEMO_ACTIVATION_ENABLED:-false}
+      - COOKIE_SECURE=${COOKIE_SECURE:-false}
+      - TRUST_FORWARDED_HEADERS=true
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      - JWT_ACCESS_EXPIRATION=${JWT_ACCESS_EXPIRATION:-900000}
+      - JWT_REFRESH_EXPIRATION=${JWT_REFRESH_EXPIRATION:-604800000}
+      - JWT_PRIVATE_KEY_PATH=/run/secrets/auth_private_key
+      - JWT_PUBLIC_KEY_PATH=/run/secrets/auth_public_key
+      - STREAMING_PRIVATE_KEY_PATH=/run/secrets/streaming_private_key
     depends_on:
       postgres-db:
         condition: service_healthy 
       redis-cache:
-        condition: service_started
+        condition: service_healthy
     networks:
       - app-network
       - db-network
-    volumes:
-      - ./infra/secrets:/app/secrets:ro 
+    secrets:
+      - auth_private_key
+      - auth_public_key
+      - streaming_private_key
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/api/v1/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
-  # 4. Next Js Frontend (ALIGNÉ PARFAITEMENT)
+  # 4. Next.js frontend
   frontend-app:
     container_name: netflix-frontend
     build:
@@ -73,10 +95,10 @@ services:
       - STREAMING_URL=http://streaming-service:8081
       - NODE_ENV=production
     depends_on:
-      - backend-api
-      - streaming-service
-    links:
-      - streaming-service
+      backend-api:
+        condition: service_healthy
+      streaming-service:
+        condition: service_healthy
     networks:
       - app-network
 
@@ -86,11 +108,20 @@ services:
     build:
       context: ./streaming
       dockerfile: Dockerfile
-    ports:
-      - "8081:8081"
+    expose:
+      - "8081"
     volumes:
-      - ./infra/secrets/public.pem:/etc/secrets/public.pem:ro
-      - ./streaming/videos:/app/videos
+      - ./streaming/videos:/app/videos:ro
+    environment:
+      - STREAMING_PUBLIC_KEY_PATH=/run/secrets/streaming_public_key
+      - VIDEO_ROOT=/app/videos
+    secrets:
+      - streaming_public_key
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 8081"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     networks:
       app-network:
         aliases:
@@ -104,3 +135,13 @@ networks:
 volumes:
   postgres_data:
   redis_data:
+
+secrets:
+  auth_private_key:
+    file: ./infra/secrets/auth-private.pem
+  auth_public_key:
+    file: ./infra/secrets/auth-public.pem
+  streaming_private_key:
+    file: ./infra/secrets/streaming-private.pem
+  streaming_public_key:
+    file: ./infra/secrets/streaming-public.pem

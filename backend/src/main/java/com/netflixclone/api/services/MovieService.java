@@ -58,7 +58,7 @@ public class MovieService {
     @Cacheable(value = "trendingMovies")
     @Transactional(readOnly = true)
     public List<MovieCardResponse> getTrendingMovies() {
-        return movieRepository.findAll(PageRequest.of(0, 10)).stream()
+        return movieRepository.findTrending(PageRequest.of(0, 10)).stream()
                 .map(this::convertToCardResponse)
                 .collect(Collectors.toList());
     }
@@ -87,24 +87,24 @@ public class MovieService {
 
     @Transactional(readOnly = true)
     public List<MovieCardResponse> searchMovies(String query, Integer genreId) {
-        List<Movie> movies;
-
-        boolean hasQuery = query != null && !query.trim().isEmpty();
-
-        if (hasQuery) {
-            movies = movieRepository.findByTitleContainingIgnoreCaseOrDescriptionContainingIgnoreCase(query, query);
-        } else if (genreId != null) {
-            movies = movieRepository.findByGenreId(genreId);
-        } else {
-            return List.of(); // Ni texte, ni genre : on renvoie vide
+        String normalizedQuery = query == null || query.isBlank() ? null : query.trim();
+        if (normalizedQuery == null && genreId == null) {
+            return List.of();
         }
 
-        if (hasQuery && genreId != null) {
-            movies = movies.stream()
-                    .filter(m -> m.getGenres() != null && 
-                                 m.getGenres().stream().anyMatch(g -> g.getId().equals(genreId)))
-                    .collect(Collectors.toList());
+        if (normalizedQuery != null && normalizedQuery.length() > 100) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La recherche est limitée à 100 caractères");
         }
+
+        if (genreId != null && genreId <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Genre invalide");
+        }
+
+        List<Movie> movies = movieRepository.search(
+                normalizedQuery,
+                genreId,
+                PageRequest.of(0, 50)
+        );
 
         return movies.stream().map(this::convertToCardResponse).collect(Collectors.toList());
     }

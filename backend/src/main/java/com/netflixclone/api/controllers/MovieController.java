@@ -9,9 +9,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import org.springframework.cache.annotation.Cacheable; // À ajouter
-
-
 import java.util.List;
 
 @RestController
@@ -41,7 +38,6 @@ public class MovieController {
         return ResponseEntity.ok(movieService.getMoviesByGenre(genreId));
     }
 
-// Remplace ton ancienne route /search par celle-ci :
     @GetMapping("/search")
     public ResponseEntity<List<MovieCardResponse>> searchMovies(
             @RequestParam(value = "q", required = false) String query,

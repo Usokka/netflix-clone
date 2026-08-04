@@ -1,46 +1,47 @@
-// src/lib/serverApiClient.ts
 import { cookies } from 'next/headers';
 
-const getBaseUrl = () => {
-  // Point crucial : communication directe via le réseau Docker "app-network"
-  return process.env.API_INTERNAL_URL || 'http://localhost:8080';
-};
-
-async function handleResponse(response: Response) {
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || errorData.message || `Erreur API: ${response.status}`);
+export class ServerApiError extends Error {
+  constructor(message: string, public readonly status: number) {
+    super(message);
+    this.name = 'ServerApiError';
   }
-  if (response.status === 204) return null;
-  return response.json();
+}
+
+const getBaseUrl = () => process.env.API_INTERNAL_URL || 'http://localhost:8080';
+
+async function handleResponse<T>(response: Response): Promise<T> {
+  const payload = await response.json().catch(() => null) as {
+    error?: string;
+    message?: string;
+  } | null;
+
+  if (!response.ok) {
+    throw new ServerApiError(
+      payload?.error ?? payload?.message ?? `Erreur API: ${response.status}`,
+      response.status,
+    );
+  }
+
+  return payload as T;
 }
 
 export const serverApiClient = {
   get: async <T>(endpoint: string): Promise<T> => {
-    const headers: Record<string, string> = { 
-      'Content-Type': 'application/json',
-      'Accept': 'application/json'
-    };
-
+    const headers: Record<string, string> = { Accept: 'application/json' };
     const cookieStore = await cookies();
-    
-    // 1. Propagation manuelle du token d'authentification
-    const token = cookieStore.get('AUTH_TOKEN')?.value;
-    if (token) {
-      headers['Cookie'] = `AUTH_TOKEN=${token}`;
-    }
 
-    // 2. Propagation manuelle du profil actif (créé dans le ProfileContext)
+    const token = cookieStore.get('AUTH_TOKEN')?.value;
+    if (token) headers.Cookie = `AUTH_TOKEN=${token}`;
+
     const profileId = cookieStore.get('profileId')?.value;
-    if (profileId) {
-      headers['X-Profile-Id'] = profileId;
-    }
+    if (profileId) headers['X-Profile-Id'] = profileId;
 
     const response = await fetch(`${getBaseUrl()}/api/v1${endpoint}`, {
       method: 'GET',
       headers,
-      cache: 'no-store', // Désactive le cache agressif de Next.js pour les requêtes API
+      cache: 'no-store',
+      signal: AbortSignal.timeout(10_000),
     });
-    return handleResponse(response) as Promise<T>;
+    return handleResponse<T>(response);
   },
 };

@@ -12,7 +12,6 @@ const PLANS = [
     name: 'Essentiel',
     price: '8,99€',
     resolution: '720p',
-    devices: 1,
     color: 'bg-zinc-800 border-zinc-700',
   },
   {
@@ -20,7 +19,6 @@ const PLANS = [
     name: 'Standard',
     price: '13,49€',
     resolution: '1080p',
-    devices: 2,
     color: 'bg-zinc-800 border-zinc-700',
   },
   {
@@ -28,19 +26,16 @@ const PLANS = [
     name: 'Premium',
     price: '17,99€',
     resolution: '4K + HDR',
-    devices: 4,
     color: 'bg-gradient-to-br from-red-900/40 to-red-600/10 border-red-600',
     popular: true,
   }
-];
+] as const;
 
 export default function PlansPage() {
   const router = useRouter();
-  const [selectedPlan, setSelectedPlan] = useState<string>('PREMIUM');
+  const [selectedPlan, setSelectedPlan] = useState<(typeof PLANS)[number]['id']>('PREMIUM');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
-  // État pour notre modal de succès
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const handleSubscribe = async () => {
@@ -48,13 +43,10 @@ export default function PlansPage() {
     setError(null);
 
     try {
-      // L'appel POST qui va taper sur ton SubscriptionController
       await apiClient.post('/subscriptions', { plan: selectedPlan });
-      
-      // On affiche notre modal de succès
       setShowSuccessModal(true);
-    } catch (err: any) {
-      setError(err.message || "Une erreur est survenue lors de la souscription.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "L'accès de démonstration n'a pas pu être activé.");
     } finally {
       setLoading(false);
     }
@@ -62,8 +54,7 @@ export default function PlansPage() {
 
   const handleCloseModal = () => {
     setShowSuccessModal(false);
-    // Après s'être abonné, on renvoie l'utilisateur vers la sélection de profil ou l'accueil
-    router.push('/'); 
+    router.push('/');
   };
 
   return (
@@ -73,8 +64,13 @@ export default function PlansPage() {
           Choisissez le forfait qui vous convient
         </h1>
         <p className="text-xl text-gray-400 mb-12 text-center">
-          Sans engagement. Annulable à tout moment.
+          Comparez les forfaits disponibles pour cette démonstration.
         </p>
+
+        <div className="bg-amber-500/10 border border-amber-500/60 text-amber-100 px-4 py-3 rounded-lg mb-8 text-center max-w-2xl mx-auto">
+          Aucun paiement réel n’est effectué. Les différences entre forfaits sont uniquement illustratives et
+          l’activation de démonstration est désactivée par défaut côté serveur.
+        </div>
 
         {error && (
           <div className="bg-red-500/10 border border-red-500 text-red-500 px-4 py-3 rounded-lg mb-8 text-center max-w-2xl mx-auto font-medium">
@@ -82,19 +78,25 @@ export default function PlansPage() {
           </div>
         )}
 
-        {/* Grille des forfaits */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
           {PLANS.map((plan) => (
-            <div 
+            <label
               key={plan.id}
-              onClick={() => setSelectedPlan(plan.id)}
-              className={`relative flex flex-col p-6 rounded-xl border-2 cursor-pointer transition-all duration-300 ${
+              className={`relative flex flex-col p-6 rounded-xl border-2 cursor-pointer transition-all duration-300 focus-within:ring-2 focus-within:ring-white ${
                 selectedPlan === plan.id 
                   ? 'border-red-600 scale-105 shadow-2xl shadow-red-600/20' 
                   : `${plan.color} hover:border-gray-500`
               }`}
             >
-              {plan.popular && (
+              <input
+                type="radio"
+                name="subscription-plan"
+                value={plan.id}
+                checked={selectedPlan === plan.id}
+                onChange={() => setSelectedPlan(plan.id)}
+                className="sr-only"
+              />
+              {'popular' in plan && plan.popular && (
                 <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-red-600 text-white text-xs font-bold px-3 py-1 rounded-full tracking-wider uppercase shadow-lg">
                   Le plus populaire
                 </span>
@@ -108,36 +110,34 @@ export default function PlansPage() {
 
               <ul className="space-y-4 mb-8 flex-1">
                 <li className="flex items-center gap-3 text-sm font-medium">
-                  <Check className="w-5 h-5 text-red-600 shrink-0" /> Résolution {plan.resolution}
+                  <Check className="w-5 h-5 text-red-600 shrink-0" /> Catalogue de démonstration
                 </li>
                 <li className="flex items-center gap-3 text-sm font-medium">
-                  <Check className="w-5 h-5 text-red-600 shrink-0" /> {plan.devices} écran(s) en simultané
+                  <Check className="w-5 h-5 text-red-600 shrink-0" /> Lecture HLS locale
                 </li>
                 <li className="flex items-center gap-3 text-sm font-medium">
-                  <Check className="w-5 h-5 text-red-600 shrink-0" /> Téléchargements disponibles
+                  <Check className="w-5 h-5 text-red-600 shrink-0" /> Historique et liste personnalisée
                 </li>
               </ul>
-            </div>
+            </label>
           ))}
         </div>
 
-        {/* Bouton de validation */}
         <div className="flex justify-center">
           <button 
             onClick={handleSubscribe}
             disabled={loading}
             className="bg-red-600 hover:bg-red-700 text-white text-xl font-bold py-4 px-16 rounded transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-red-600/20 w-full md:w-auto"
           >
-            {loading ? "Traitement en cours..." : "S'abonner"}
+            {loading ? "Activation en cours..." : "Activer l'accès démo"}
           </button>
         </div>
       </div>
 
-      {/* --- NOTRE MODAL REUTILISABLE --- */}
       <Modal
         isOpen={showSuccessModal}
         onClose={handleCloseModal}
-        title="Paiement validé !"
+        title="Accès de démonstration activé"
       >
         <div className="flex flex-col items-center text-center space-y-4 mb-8">
           <ShieldCheck className="w-16 h-16 text-green-500 mb-2" />
@@ -145,7 +145,7 @@ export default function PlansPage() {
             Votre abonnement <span className="text-white font-bold">{PLANS.find(p => p.id === selectedPlan)?.name}</span> est désormais actif.
           </p>
           <p className="text-sm text-zinc-400">
-            Préparez le pop-corn, vous avez maintenant accès à tout notre catalogue en illimité et en très haute qualité !
+            Cette activation ne correspond pas à un paiement et ne doit pas être utilisée en production.
           </p>
         </div>
 

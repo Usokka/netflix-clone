@@ -6,7 +6,6 @@ import com.netflixclone.api.models.Profile;
 import com.netflixclone.api.models.WatchList;
 import com.netflixclone.api.models.WatchListId;
 import com.netflixclone.api.repositories.MovieRepository;
-import com.netflixclone.api.repositories.ProfileRepository;
 import com.netflixclone.api.repositories.WatchListRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -24,18 +23,21 @@ import java.util.stream.Collectors;
 public class WatchlistService {
 
     private final WatchListRepository watchListRepository;
-    private final ProfileRepository profileRepository;
     private final MovieRepository movieRepository;
+    private final ProfileService profileService;
 
     @Transactional(readOnly = true)
-    public List<MovieCardResponse> getWatchlist(UUID profileId) {
+    public List<MovieCardResponse> getWatchlist(String email, UUID profileId) {
+        profileService.getProfileOwnedByUser(email, profileId);
+
         return watchListRepository.findAllByProfileId(profileId).stream()
                 .map(watchList -> convertToCardResponse(watchList.getMovie()))
                 .collect(Collectors.toList());
     }
 
     @Transactional
-    public void addToWatchlist(UUID profileId, String movieIdStr) {
+    public void addToWatchlist(String email, UUID profileId, String movieIdStr) {
+        Profile profile = profileService.getProfileOwnedByUser(email, profileId);
         UUID movieId = parseUUID(movieIdStr);
         WatchListId id = new WatchListId(profileId, movieId);
 
@@ -43,9 +45,6 @@ public class WatchlistService {
             return; // Le film est déjà dans la liste, on ne fait rien
         }
 
-        Profile profile = profileRepository.findById(profileId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Profil introuvable"));
-        
         Movie movie = movieRepository.findById(movieId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Film introuvable"));
 
@@ -60,7 +59,8 @@ public class WatchlistService {
     }
 
     @Transactional
-    public void removeFromWatchlist(UUID profileId, String movieIdStr) {
+    public void removeFromWatchlist(String email, UUID profileId, String movieIdStr) {
+        profileService.getProfileOwnedByUser(email, profileId);
         UUID movieId = parseUUID(movieIdStr);
         WatchListId id = new WatchListId(profileId, movieId);
         

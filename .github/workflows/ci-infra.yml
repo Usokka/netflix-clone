@@ -8,11 +8,28 @@ on:
       - 'docker-compose.yml'
       - '.env.example'
       - '.github/workflows/ci-infra.yml'
+  pull_request:
+    branches: [dev, main]
+    paths:
+      - 'infra/**'
+      - 'docker-compose.yml'
+      - '.env.example'
+      - '.github/workflows/ci-infra.yml'
 
 jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Generate validation secrets
+        run: |
+          mkdir -p infra/secrets streaming/videos
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out infra/secrets/auth-private.pem
+          openssl rsa -pubout -in infra/secrets/auth-private.pem -out infra/secrets/auth-public.pem
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out infra/secrets/streaming-private.pem
+          openssl rsa -pubout -in infra/secrets/streaming-private.pem -out infra/secrets/streaming-public.pem
       - name: Validate docker-compose syntax
         run: docker compose config
+        env:
+          DB_PASSWORD: ci_database_password
+          REDIS_PASSWORD: ci_redis_password

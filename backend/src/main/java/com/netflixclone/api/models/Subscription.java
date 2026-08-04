@@ -22,8 +22,9 @@ public class Subscription {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(nullable = false)
-    private String plan;
+    @Column(nullable = false, length = 20)
+    @Enumerated(EnumType.STRING)
+    private SubscriptionPlan plan;
 
     @Column(name = "started_at", nullable = false)
     private LocalDate startedAt;

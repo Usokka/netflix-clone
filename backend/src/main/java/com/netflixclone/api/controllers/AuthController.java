@@ -4,7 +4,10 @@ import com.netflixclone.api.dtos.LoginRequest;
 import com.netflixclone.api.dtos.RegisterRequest;
 import com.netflixclone.api.models.User;
 import com.netflixclone.api.repositories.UserRepository;
+import com.netflixclone.api.security.AuthenticationCookieService;
 import com.netflixclone.api.security.JwtUtil;
+import com.netflixclone.api.security.RefreshTokenService;
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -17,10 +20,14 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.csrf.CsrfToken;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.Map;
+import java.nio.charset.StandardCharsets;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -32,34 +39,32 @@ public class AuthController {
     private final JwtUtil jwtUtil;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuthenticationCookieService authenticationCookieService;
+    private final RefreshTokenService refreshTokenService;
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request, HttpServletResponse response) {
+        String normalizedEmail = normalizeEmail(request.getEmail());
+        validateBcryptPasswordLength(request.getPassword());
         authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
+                new UsernamePasswordAuthenticationToken(normalizedEmail, request.getPassword()));
 
-        UserDetails userDetails = userDetailsService.loadUserByUsername(request.getEmail());
+        UserDetails userDetails = userDetailsService.loadUserByUsername(normalizedEmail);
 
         String jwt = jwtUtil.generateToken(userDetails);
-        String refreshJwt = jwtUtil.generateRefreshToken(userDetails); // déjà dans JwtUtil ✅
-
-        // AUTH_TOKEN (15 min)
-        Cookie authCookie = new Cookie("AUTH_TOKEN", jwt);
-        authCookie.setHttpOnly(true);
-        authCookie.setSecure(false);
-        authCookie.setPath("/");
-        authCookie.setMaxAge((int) jwtUtil.getJwtExpiration() / 1000);
-        response.addCookie(authCookie);
-
-        // REFRESH_TOKEN (7 jours) — MANQUAIT
-        Cookie refreshCookie = new Cookie("REFRESH_TOKEN", refreshJwt);
-        refreshCookie.setHttpOnly(true);
-        refreshCookie.setSecure(false);
-        refreshCookie.setPath("/api/v1/auth/refresh"); // scope limité ✅
-        refreshCookie.setMaxAge(7 * 24 * 60 * 60);
-        response.addCookie(refreshCookie);
+        String refreshJwt = jwtUtil.generateRefreshToken(userDetails);
+        refreshTokenService.register(refreshJwt);
+        authenticationCookieService.setAuthenticationCookies(response, jwt, refreshJwt);
 
         return ResponseEntity.ok(Map.of("message", "Connexion réussie"));
+    }
+
+    @GetMapping("/csrf")
+    public ResponseEntity<Map<String, String>> csrf(CsrfToken csrfToken) {
+        return ResponseEntity.ok(Map.of(
+                "headerName", csrfToken.getHeaderName(),
+                "token", csrfToken.getToken()
+        ));
     }
 
     @PostMapping("/refresh")
@@ -67,30 +72,23 @@ public class AuthController {
         if (request.getCookies() == null)
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Pas de refresh token"));
 
-        String refreshToken = Arrays.stream(request.getCookies())
-                .filter(c -> "REFRESH_TOKEN".equals(c.getName()))
-                .map(Cookie::getValue)
-                .findFirst()
-                .orElse(null);
+        String refreshToken = getCookieValue(request, AuthenticationCookieService.REFRESH_TOKEN_COOKIE);
 
         if (refreshToken == null)
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Refresh token manquant"));
 
         try {
-            String email = jwtUtil.extractUsername(refreshToken);
+            String email = refreshTokenService.consume(refreshToken);
             UserDetails userDetails = userDetailsService.loadUserByUsername(email);
 
-            // Génère un nouveau ACCESS token
             String newJwt = jwtUtil.generateToken(userDetails);
+            String newRefreshJwt = jwtUtil.generateRefreshToken(userDetails);
+            refreshTokenService.register(newRefreshJwt);
+            authenticationCookieService.setAuthenticationCookies(response, newJwt, newRefreshJwt);
 
-            Cookie authCookie = new Cookie("AUTH_TOKEN", newJwt);
-            authCookie.setHttpOnly(true);
-            authCookie.setSecure(false);
-            authCookie.setPath("/");
-            authCookie.setMaxAge((int) jwtUtil.getJwtExpiration() / 1000);
-            response.addCookie(authCookie);
-
-            return ResponseEntity.ok(Map.of("message", "Token rafraîchi"));
+            return ResponseEntity.ok(Map.of("message", "Jetons renouvelés"));
+        } catch (org.springframework.web.server.ResponseStatusException exception) {
+            throw exception;
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Refresh token invalide ou expiré"));
@@ -99,43 +97,58 @@ public class AuthController {
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request) {
-        if (userRepository.findByEmail(request.getEmail()).isPresent()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Cet email est déjà utilisé"));
+        String normalizedEmail = normalizeEmail(request.getEmail());
+        validateBcryptPasswordLength(request.getPassword());
+        if (userRepository.findByEmailIgnoreCase(normalizedEmail).isPresent()) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Cet email est déjà utilisé"
+            );
         }
 
         User newUser = User.builder()
-                .email(request.getEmail())
+                .email(normalizedEmail)
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .role("ROLE_USER")
                 .build();
-        userRepository.save(newUser);
 
-        return ResponseEntity.ok(Map.of("message", "Utilisateur enregistré avec succès"));
+        try {
+            userRepository.saveAndFlush(newUser);
+        } catch (DataIntegrityViolationException exception) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Cet email est déjà utilisé",
+                    exception
+            );
+        }
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(Map.of("message", "Utilisateur enregistré avec succès"));
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<?> logout(HttpServletResponse response) {
-        Cookie authCookie = new Cookie("AUTH_TOKEN", null);
-        authCookie.setHttpOnly(true);
-        authCookie.setPath("/");
-        authCookie.setMaxAge(0);
-        response.addCookie(authCookie);
+    public ResponseEntity<?> logout(HttpServletRequest request, HttpServletResponse response) {
+        String refreshToken = getCookieValue(request, AuthenticationCookieService.REFRESH_TOKEN_COOKIE);
+        try {
+            if (refreshToken != null) {
+                refreshTokenService.revoke(refreshToken);
+            }
+        } catch (JwtException ignored) {
+            // Le cookie local doit être supprimé même si son contenu est déjà invalide.
+        } finally {
+            authenticationCookieService.clearAuthenticationCookies(response);
+        }
         return ResponseEntity.ok(Map.of("message", "Déconnexion réussie"));
     }
 
     @GetMapping("/me")
     public ResponseEntity<?> me(HttpServletRequest request) {
-        // Récupère le cookie AUTH_TOKEN
         if (request.getCookies() == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Non authentifié"));
         }
 
-        String token = Arrays.stream(request.getCookies())
-                .filter(c -> "AUTH_TOKEN".equals(c.getName()))
-                .map(Cookie::getValue)
-                .findFirst()
-                .orElse(null);
+        String token = getCookieValue(request, AuthenticationCookieService.ACCESS_TOKEN_COOKIE);
 
         if (token == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -143,11 +156,36 @@ public class AuthController {
         }
 
         try {
-            String email = jwtUtil.extractUsername(token);
+            String email = jwtUtil.extractAccessTokenUsername(token);
             return ResponseEntity.ok(Map.of("email", email));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Token invalide ou expiré"));
+        }
+    }
+
+    private String getCookieValue(HttpServletRequest request, String cookieName) {
+        if (request.getCookies() == null) {
+            return null;
+        }
+
+        return Arrays.stream(request.getCookies())
+                .filter(cookie -> cookieName.equals(cookie.getName()))
+                .map(Cookie::getValue)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private String normalizeEmail(String email) {
+        return email.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private void validateBcryptPasswordLength(String password) {
+        if (password.getBytes(StandardCharsets.UTF_8).length > 72) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Le mot de passe ne peut pas dépasser 72 octets UTF-8"
+            );
         }
     }
 }

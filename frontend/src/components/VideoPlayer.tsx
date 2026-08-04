@@ -1,8 +1,8 @@
 'use client';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
 import { useRouter } from 'next/navigation';
-import { apiClient } from '@/lib/apiClient';
+import { ApiError, apiClient } from '@/lib/apiClient';
 import { useProfile } from '@/context/ProfileContext';
 import Modal from '@/components/ui/modal';
 import { Lock } from 'lucide-react';
@@ -25,18 +25,20 @@ export default function VideoPlayer({ movieId, videoFolderUrl, timestamp = 0 }: 
   const lastSavedTimeRef = useRef<number>(timestamp);
   const currentTimeRef = useRef<number>(timestamp);
 
-  const saveProgress = async (time: number) => {
+  const saveProgress = useCallback(async (time: number) => {
     if (!activeProfile || time === lastSavedTimeRef.current) return;
+    const stoppedAtSeconds = Math.floor(time);
+
     try {
       await apiClient.post('/watch-history', {
-        movieId: movieId, // Ici, c'est le vrai UUID qui part vers PostgreSQL
-        timestamp: Math.floor(time),
+        movieId,
+        timestamp: stoppedAtSeconds,
       }, activeProfile.id);
-      lastSavedTimeRef.current = time;
+      lastSavedTimeRef.current = stoppedAtSeconds;
     } catch (err) {
       console.error("Erreur sauvegarde progression :", err);
     }
-  };
+  }, [activeProfile, movieId]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -44,10 +46,10 @@ export default function VideoPlayer({ movieId, videoFolderUrl, timestamp = 0 }: 
 
     let hls: Hls | null = null;
     let isMounted = true;
+    let nativeLoadedMetadataHandler: (() => void) | null = null;
 
     const initializeVideo = async () => {
       try {
-        // CORRECTION : On utilise videoFolderUrl pour demander le ticket HLS
         const { ticket } = await apiClient.get<{ ticket: string }>(
           `/stream/${videoFolderUrl}/ticket`, 
           activeProfile.id
@@ -55,19 +57,18 @@ export default function VideoPlayer({ movieId, videoFolderUrl, timestamp = 0 }: 
 
         if (!isMounted) return;
 
-        // CORRECTION : On utilise videoFolderUrl pour le chemin du fichier m3u8
         const manifestUrl = `/video/${videoFolderUrl}/playlist.m3u8?ticket=${ticket}`;
-
-
 
         if (Hls.isSupported()) {
           hls = new Hls({
             xhrSetup: (xhr, url) => {
-              if (!url.includes('ticket=')) {
-                xhr.open('GET', `${url}?ticket=${ticket}`, true);
+              const requestUrl = new URL(url, window.location.href);
+              if (requestUrl.origin === window.location.origin && !requestUrl.searchParams.has('ticket')) {
+                const separator = url.includes('?') ? '&' : '?';
+                xhr.open('GET', `${url}${separator}ticket=${ticket}`, true);
               }
             },
-            startPosition: timestamp > 0 ? timestamp : -1, // NOUVEAU : Démarrer au bon moment (HLS)
+            startPosition: timestamp > 0 ? timestamp : -1,
           });
 
           hls.loadSource(manifestUrl);
@@ -88,19 +89,19 @@ export default function VideoPlayer({ movieId, videoFolderUrl, timestamp = 0 }: 
           });
         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
           video.src = manifestUrl;
-          video.addEventListener('loadedmetadata', () => {
+          nativeLoadedMetadataHandler = () => {
             if (isMounted) {
-              // NOUVEAU : Démarrer au bon moment (Safari / iOS natif)
               if (timestamp > 0) video.currentTime = timestamp;
               setLoading(false);
-              video.play();
+              video.play().catch(() => console.log('Autoplay bloqué'));
             }
-          });
+          };
+          video.addEventListener('loadedmetadata', nativeLoadedMetadataHandler);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (isMounted) {
           setLoading(false);
-          if (err.status === 403 || err.message?.includes('inactif') || err.message?.includes('403')) {
+          if (err instanceof ApiError && err.status === 403) {
             setShowSubscriptionModal(true);
           } else {
             setError("Échec de la connexion au flux vidéo.");
@@ -113,13 +114,15 @@ export default function VideoPlayer({ movieId, videoFolderUrl, timestamp = 0 }: 
 
     return () => {
       isMounted = false;
-      // NOUVEAU : Sauvegarde finale à la fermeture du composant
       if (currentTimeRef.current > 0) {
-        saveProgress(currentTimeRef.current);
+        void saveProgress(currentTimeRef.current);
+      }
+      if (nativeLoadedMetadataHandler) {
+        video.removeEventListener('loadedmetadata', nativeLoadedMetadataHandler);
       }
       if (hls) hls.destroy();
     };
-  }, [movieId, activeProfile]);
+  }, [activeProfile, saveProgress, timestamp, videoFolderUrl]);
 
   // NOUVEAU : Écouteur pour la sauvegarde régulière (toutes les 15 secondes)
   const handleTimeUpdate = (e: React.SyntheticEvent<HTMLVideoElement>) => {
@@ -153,7 +156,7 @@ export default function VideoPlayer({ movieId, videoFolderUrl, timestamp = 0 }: 
             playsInline
             muted={false}
             autoPlay
-            onTimeUpdate={handleTimeUpdate} // NOUVEAU : On relie l'événement
+            onTimeUpdate={handleTimeUpdate}
           />
         )}
       </div>
@@ -168,7 +171,7 @@ export default function VideoPlayer({ movieId, videoFolderUrl, timestamp = 0 }: 
             <Lock className="w-8 h-8 text-red-500" />
           </div>
           <p className="text-gray-300 font-medium">
-            Oups ! Il semble que vous n'ayez pas d'abonnement actif.
+            Oups ! Il semble que vous n&apos;ayez pas d&apos;abonnement actif.
           </p>
           <p className="text-sm text-zinc-400">
             Pour visionner ce film en haute qualité et sans interruption, débloquez un accès Premium.
@@ -186,7 +189,7 @@ export default function VideoPlayer({ movieId, videoFolderUrl, timestamp = 0 }: 
             onClick={() => router.push('/plans')}
             className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-3 rounded transition shadow-lg shadow-red-600/20"
           >
-            S'abonner maintenant
+            Voir les forfaits
           </button>
         </div>
       </Modal>

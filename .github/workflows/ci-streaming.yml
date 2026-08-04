@@ -6,6 +6,11 @@ on:
     paths:
       - 'streaming/**'
       - '.github/workflows/ci-streaming.yml'
+  pull_request:
+    branches: [dev, main]
+    paths:
+      - 'streaming/**'
+      - '.github/workflows/ci-streaming.yml'
 
 jobs:
   build:
@@ -13,11 +18,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
-        run: sudo apt-get install -y cmake libssl-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake libssl-dev
       - name: Build
         run: |
           cmake -B build -S .
           cmake --build build
+        working-directory: ./streaming
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
         working-directory: ./streaming
       - name: Build Docker image
         run: docker build -t netflix-streaming ./streaming

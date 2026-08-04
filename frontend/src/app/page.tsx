@@ -1,8 +1,9 @@
 import MovieRow from "@/components/MovieRow";
 import Navbar from "@/components/Navbar";
-import { Play, Info } from "lucide-react";
+import { Play } from "lucide-react";
 import { Movie, Genre } from "@/types";
-import { serverApiClient } from "@/lib/serverApiClient";
+import { ServerApiError, serverApiClient } from "@/lib/serverApiClient";
+import Image from "next/image";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -17,28 +18,27 @@ export default async function Home() {
 
   let trendingMovies: Movie[] = [];
   let genres: Genre[] = [];
-  let moviesByGenre: Record<number, Movie[]> = {};
+  const moviesByGenre: Record<number, Movie[]> = {};
   let watchlist: Movie[] = []; 
   let continueWatching: Movie[] = []; // NOUVEAU
 
   try {
     // NOUVEAU : Ajout de l'appel watch-history
-    const [trendingRes, genresRes, watchlistRes, historyRes] = await Promise.allSettled([
+    const [trendingRes, genresRes, watchlistRes, historyRes] = await Promise.all([
       serverApiClient.get<Movie[]>("/movies/trending"),
       serverApiClient.get<Genre[]>("/genres"),
       serverApiClient.get<Movie[]>("/watchlist"),
       serverApiClient.get<Movie[]>("/watch-history") 
     ]);
 
-    trendingMovies = trendingRes.status === 'fulfilled' ? trendingRes.value : [];
-    genres = genresRes.status === 'fulfilled' ? genresRes.value : [];
-    watchlist = watchlistRes.status === 'fulfilled' ? watchlistRes.value : [];
-    continueWatching = historyRes.status === 'fulfilled' ? historyRes.value : []; // NOUVEAU
+    trendingMovies = trendingRes;
+    genres = genresRes;
+    watchlist = watchlistRes;
+    continueWatching = historyRes;
 
     const genrePromises = genres.map((genre) =>
       serverApiClient.get<Movie[]>(`/movies/genre/${genre.id}`)
         .then((movies) => ({ genreId: genre.id, movies }))
-        .catch(() => ({ genreId: genre.id, movies: [] }))
     );
 
     const genreResults = await Promise.all(genrePromises);
@@ -48,7 +48,9 @@ export default async function Home() {
     });
 
   } catch (error) {
-    console.error("Erreur lors du chargement du catalogue:", error);
+    if (error instanceof ServerApiError && error.status === 401) redirect('/login');
+    if (error instanceof ServerApiError && error.status === 403) redirect('/profiles');
+    throw error;
   }
 
   // NOUVEAU : Si on a un film en cours, on peut le mettre en hero banner, sinon on prend les tendances
@@ -67,10 +69,13 @@ export default async function Home() {
         <div className="absolute inset-0 bg-gradient-to-t from-[#141414] via-[#141414]/20 to-black/40 z-10" />
         
         {heroMovie ? (
-          <img
+          <Image
             src={heroMovie.thumbnailUrl}
             alt={heroMovie.title}
-            className="absolute inset-0 w-full h-full object-cover brightness-[65%] -z-0"
+            fill
+            priority
+            sizes="100vw"
+            className="object-cover brightness-[65%]"
           />
         ) : (
           <div className="absolute inset-0 w-full h-full bg-neutral-800" />
@@ -84,16 +89,16 @@ export default async function Home() {
             {heroMovie?.description || "Découvrez nos meilleurs films et séries disponibles dès maintenant sur votre plateforme de streaming."}
           </p>
           
-          <div className="flex items-center gap-3 pt-2">
-            <Link href={heroWatchLink}>
-              <button className="flex items-center gap-2 bg-white text-black px-4 md:px-7 py-1.5 md:py-2.5 rounded font-bold hover:bg-neutral-200 transition text-sm md:text-base shadow">
-                <Play className="w-4 h-4 md:w-5 md:h-5 fill-current" /> {heroMovie?.timestamp ? "Reprendre" : "Lecture"}
-              </button>
+          {heroMovie && (
+            <div className="flex items-center gap-3 pt-2">
+            <Link
+              href={heroWatchLink}
+              className="flex items-center gap-2 bg-white text-black px-4 md:px-7 py-1.5 md:py-2.5 rounded font-bold hover:bg-neutral-200 transition text-sm md:text-base shadow"
+            >
+              <Play className="w-4 h-4 md:w-5 md:h-5 fill-current" /> {heroMovie?.timestamp ? "Reprendre" : "Lecture"}
             </Link>
-            <button className="flex items-center gap-2 bg-zinc-500/60 text-white px-4 md:px-7 py-1.5 md:py-2.5 rounded font-bold hover:bg-zinc-500/40 transition text-sm md:text-base backdrop-blur-sm">
-              <Info className="w-4 h-4 md:w-5 md:h-5" /> Plus d&apos;infos
-            </button>
-          </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -105,7 +110,9 @@ export default async function Home() {
         )}
 
         {watchlist.length > 0 && (
-          <MovieRow title="Ma Liste" movies={watchlist} />
+          <div id="my-list">
+            <MovieRow title="Ma Liste" movies={watchlist} />
+          </div>
         )}
 
         {trendingMovies.length > 0 && (

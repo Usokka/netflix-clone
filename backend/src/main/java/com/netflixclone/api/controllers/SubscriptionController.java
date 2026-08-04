@@ -1,7 +1,10 @@
 package com.netflixclone.api.controllers;
 
 import com.netflixclone.api.dtos.SubscriptionResponse;
+import com.netflixclone.api.models.SubscriptionPlan;
 import com.netflixclone.api.services.SubscriptionService;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -20,15 +23,16 @@ public class SubscriptionController {
     private final SubscriptionService subscriptionService;
 
     @PostMapping
-    public ResponseEntity<?> createSubscription(
+    public ResponseEntity<Map<String, String>> activateDemoSubscription(
             @AuthenticationPrincipal UserDetails userDetails,
-            @RequestBody SubscriptionRequest request) {
-        
-        subscriptionService.createOrUpdateSubscription(userDetails.getUsername(), request.getPlan());
-        return ResponseEntity.ok(Map.of("message", "Abonnement " + request.getPlan() + " activé avec succès"));
+            @Valid @RequestBody SubscriptionRequest request) {
+        subscriptionService.activateDemoSubscription(userDetails.getUsername(), request.getPlan());
+        return ResponseEntity.ok(Map.of(
+                "message", "Accès de démonstration " + request.getPlan() + " activé",
+                "mode", "demo"
+        ));
     }
 
-    // NOUVEAU : Endpoint pour récupérer la liste
     @GetMapping
     public ResponseEntity<List<SubscriptionResponse>> getMySubscriptions(
             @AuthenticationPrincipal UserDetails userDetails) {
@@ -37,8 +41,7 @@ public class SubscriptionController {
 
     @Data
     static class SubscriptionRequest {
-        private String plan;
+        @NotNull(message = "Le forfait est obligatoire")
+        private SubscriptionPlan plan;
     }
-
-
 }
