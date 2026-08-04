@@ -3,6 +3,7 @@ RUN apk add --no-cache g++ cmake make openssl-dev git
 WORKDIR /app
 COPY CMakeLists.txt ./
 COPY src/ ./src/
+COPY tests/ ./tests/
 RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
     && cmake --build build --parallel \
     && ctest --test-dir build --output-on-failure
